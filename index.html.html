@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hindi Book Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1c1a17;
+    --paper:#faf6ef;
+    --paper-2:#f1ead9;
+    --line:#ddd2ba;
+    --accent:#b5502f;
+    --accent-2:#3d6b5c;
+    --muted:#8a7f6a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .tamil{font-family:'Noto Sans Tamil','Inter',sans-serif;}
+  header{
+    padding:22px 18px 16px;
+    border-bottom:2px solid var(--ink);
+    background:var(--paper);
+    position:sticky;
+    top:0;
+    z-index:5;
+  }
+  header h1{
+    margin:0 0 4px;
+    font-size:1.35rem;
+    letter-spacing:-0.01em;
+  }
+  header p{margin:0;color:var(--muted);font-size:0.85rem;}
+  .tabs{
+    display:flex;
+    gap:6px;
+    margin-top:14px;
+  }
+  .tab{
+    padding:8px 16px;
+    border:1.5px solid var(--ink);
+    border-radius:999px;
+    background:transparent;
+    font-family:inherit;
+    font-weight:600;
+    font-size:0.85rem;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .tab.active{background:var(--ink);color:var(--paper);}
+  main{max-width:760px;margin:0 auto;padding:20px 16px 60px;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .search-box{
+    display:flex;
+    align-items:center;
+    background:#fff;
+    border:2px solid var(--ink);
+    border-radius:12px;
+    padding:4px 4px 4px 14px;
+    margin-bottom:6px;
+  }
+  .search-box input{
+    flex:1;
+    border:none;
+    outline:none;
+    font-size:1.05rem;
+    padding:12px 8px;
+    background:transparent;
+    font-family:inherit;
+  }
+  .search-box .count{
+    padding:6px 14px;
+    font-size:0.8rem;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  .hint{font-size:0.8rem;color:var(--muted);margin:0 0 18px;}
+
+  .result{
+    background:#fff;
+    border:1px solid var(--line);
+    border-left:4px solid var(--accent);
+    border-radius:8px;
+    padding:14px 16px;
+    margin-bottom:10px;
+  }
+  .result .meta{
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .result .tamil-line{
+    font-size:1.05rem;
+    font-weight:600;
+    margin-bottom:4px;
+  }
+  .result .hindi-line{
+    font-size:1.05rem;
+    color:var(--accent-2);
+    margin-bottom:2px;
+  }
+  .result .roman{
+    font-size:0.85rem;
+    color:var(--muted);
+    font-style:italic;
+  }
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    padding:40px 10px;
+    font-size:0.9rem;
+  }
+
+  textarea{
+    width:100%;
+    min-height:220px;
+    border:2px solid var(--ink);
+    border-radius:10px;
+    padding:12px;
+    font-family:'Menlo',monospace;
+    font-size:0.82rem;
+    resize:vertical;
+    background:#fff;
+    color:var(--ink);
+  }
+  .format-note{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 14px;
+    font-size:0.78rem;
+    color:var(--muted);
+    margin-bottom:12px;
+    line-height:1.5;
+  }
+  .format-note code{background:#fff;padding:1px 5px;border-radius:4px;}
+  button.primary{
+    margin-top:12px;
+    padding:12px 22px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    font-family:inherit;
+    font-weight:600;
+    font-size:0.9rem;
+    cursor:pointer;
+  }
+  button.primary:disabled{opacity:0.5;}
+  .status{margin-top:10px;font-size:0.85rem;}
+  .status.ok{color:var(--accent-2);}
+  .status.err{color:var(--accent);}
+
+  .book-section{margin-bottom:26px;}
+  .book-section h2{
+    font-size:1rem;
+    margin:0 0 10px;
+    padding-bottom:6px;
+    border-bottom:2px solid var(--ink);
+  }
+  .book-row{
+    display:flex;
+    gap:14px;
+    padding:8px 0;
+    border-bottom:1px solid var(--line);
+    align-items:baseline;
+  }
+  .book-row .num{
+    flex:0 0 28px;
+    font-size:0.75rem;
+    color:var(--muted);
+  }
+  .book-row .tamil-col{flex:1;font-weight:600;}
+  .book-row .hindi-col{flex:1;color:var(--accent-2);}
+  .refresh-btn{
+    background:transparent;
+    border:1.5px solid var(--ink);
+    border-radius:8px;
+    padding:6px 14px;
+    font-family:inherit;
+    font-size:0.8rem;
+    cursor:pointer;
+    margin-bottom:16px;
+  }
+
+  .index-toolbar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .index-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 16px;
+    margin-bottom:8px;
+    cursor:pointer;
+  }
+  .index-item:hover{border-color:var(--accent);}
+  .index-item .index-count{font-size:0.78rem;color:var(--muted);white-space:nowrap;margin-left:12px;}
+
+  .reader-toolbar{
+    position:sticky;
+    top:0;
+    background:var(--paper);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 0;
+    z-index:3;
+  }
+  .nav-btn{
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:8px;
+    padding:10px 16px;
+    font-family:inherit;
+    font-weight:600;
+    font-size:0.85rem;
+    cursor:pointer;
+  }
+  .nav-btn:disabled{opacity:0.35;cursor:default;}
+  .page-indicator{font-size:0.85rem;color:var(--muted);text-align:center;flex:1;}
+  .back-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:6px 12px;
+    font-family:inherit;
+    font-size:0.78rem;
+    color:var(--muted);
+    cursor:pointer;
+    margin-bottom:14px;
+  }
+  .book-row.highlight{
+    background:#fff2e0;
+    border-radius:6px;
+    padding-left:8px;
+    margin-left:-8px;
+    animation: fadeHighlight 2.5s ease-out;
+  }
+  @keyframes fadeHighlight{
+    0%{background:#ffe0b0;}
+    100%{background:#fff2e0;}
+  }
+  .goto-btn{
+    margin-top:8px;
+    background:transparent;
+    border:1px solid var(--accent);
+    color:var(--accent);
+    border-radius:6px;
+    padding:4px 10px;
+    font-family:inherit;
+    font-size:0.75rem;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Hindi Book Search</h1>
+  <p>Tamil ↔ Hindi (Tamil script) vocabulary, searchable by typing in any language.</p>
+  <p id="syncFlag" style="color:var(--accent-2);font-size:0.78rem;min-height:1em;margin-top:4px;"></p>
+  <div class="tabs">
+    <button class="tab active" data-tab="search">Search</button>
+    <button class="tab" data-tab="book">Book</button>
+    <button class="tab" data-tab="add">Add lines</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel active" id="panel-search">
+    <div class="search-box">
+      <input id="q" type="text" placeholder="Type: aval, yennidam, வா, वो..." autocomplete="off">
+      <span class="count" id="count"></span>
+    </div>
+    <p class="hint">Searches Tamil, Hindi (Tamil script), and both transliterations — close spellings still match.</p>
+    <div id="results"></div>
+  </section>
+
+  <section class="panel" id="panel-book">
+    <div id="bookIndexView">
+      <div class="index-toolbar">
+        <button class="refresh-btn" id="refreshIndexBtn">↻ Refresh index</button>
+        <span class="hint" id="indexHint" style="margin:0;">Loading index...</span>
+      </div>
+      <div id="indexList"></div>
+    </div>
+    <div id="bookReaderView" style="display:none;">
+      <div class="reader-toolbar">
+        <button class="nav-btn" id="prevPageBtn">‹ Prev</button>
+        <span id="pageIndicator" class="page-indicator"></span>
+        <button class="nav-btn" id="nextPageBtn">Next ›</button>
+      </div>
+      <button class="back-btn" id="backToIndexBtn">☰ Back to index</button>
+      <div id="readerContent"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-add">
+    <div class="format-note">
+      One line per entry, fields separated by <code>|</code>:<br>
+      <code>page | section | item_no | tamil | hindi | hindi_roman | tamil_roman</code><br>
+      Leave a field blank if not applicable, but keep all 7 <code>|</code>-separated slots.<br>
+      Example:<br>
+      <code>45 | Vocabulary p45-75 | 45 | ராதாவை மேலே அனுப்பு | ராதா கோ ஊப்பர் பேஜோ | Radha ko oopar bhejo | Radhavai melae anuppu</code>
+    </div>
+    <textarea id="bulk" placeholder="Paste lines here..."></textarea><br>
+    <button class="primary" id="importBtn">Import lines</button>
+    <div class="status" id="importStatus"></div>
+  </section>
+</main>
+
+<script>
+  const SUPABASE_URL = "https://ihbbihdjyphngxgoazxt.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_i0L6b4_Xyf94lpzLXlEM6g_832eesuH";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ---- Auto-sync: new lines baked into this file, loaded automatically on open ----
+  // Each time new pages are transcribed, this block gets replaced with the new batch.
+  // Safe to open this file (or an old copy of it) any number of times — sync_log
+  // makes sure a given batch_id is only ever inserted once.
+  const EMBEDDED_BATCH = {
+    id: "batch1_lesson1_and_vocab45to75",
+    rows: [
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "வா",
+    "hindi": "ஆவோ",
+    "hindi_roman": "Aavo",
+    "tamil_roman": "vaa"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "போ",
+    "hindi": "ஜாவோ",
+    "hindi_roman": "Jaavo",
+    "tamil_roman": "poo"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "எடு",
+    "hindi": "லோ",
+    "hindi_roman": "Lo",
+    "tamil_roman": "edu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "கொடு",
+    "hindi": "தோ",
+    "hindi_roman": "Dho",
+    "tamil_roman": "kodu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "செய்",
+    "hindi": "கரோ",
+    "hindi_roman": "Karo",
+    "tamil_roman": "sey"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "பாரு",
+    "hindi": "தேக்கோ",
+    "hindi_roman": "Dhey ko",
+    "tamil_roman": "paaru"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "காட்டு",
+    "hindi": "திக்காவோ",
+    "hindi_roman": "Dhikkaavo",
+    "tamil_roman": "kaattu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "கொண்டுவா",
+    "hindi": "லாவோ",
+    "hindi_roman": "Laavo",
+    "tamil_roman": "konduvaa"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "அனுப்பு",
+    "hindi": "பேஜோ",
+    "hindi_roman": "Bay jo",
+    "tamil_roman": "anuppu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "விற்றுவிடு",
+    "hindi": "பேச்சோ",
+    "hindi_roman": "Bay cho",
+    "tamil_roman": "vitruvidu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "சாப்பிடு",
+    "hindi": "காவோ",
+    "hindi_roman": "Kaavo",
+    "tamil_roman": "saappidu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "குடி",
+    "hindi": "பியோ",
+    "hindi_roman": "Piyo",
+    "tamil_roman": "kudi"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "எழுது",
+    "hindi": "லிக்கோ",
+    "hindi_roman": "Likko",
+    "tamil_roman": "eluthu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "படி",
+    "hindi": "படோ",
+    "hindi_roman": "Pado",
+    "tamil_roman": "padi"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "வை",
+    "hindi": "ரக்கோ",
+    "hindi_roman": "Rakko",
+    "tamil_roman": "vai"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "போடு",
+    "hindi": "டாலோ",
+    "hindi_roman": "Daalo",
+    "tamil_roman": "podu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "சொல்லு",
+    "hindi": "கஹோ / பத்தாவோ / போலோ",
+    "hindi_roman": "Kaho / Bathaavo / Bolo",
+    "tamil_roman": "sollu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "கேளு (பொருள்)",
+    "hindi": "மாங்கோ",
+    "hindi_roman": "Maango",
+    "tamil_roman": "kelu porul"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "கேளு (விவரம்)",
+    "hindi": "பூச்சோ",
+    "hindi_roman": "Poocho",
+    "tamil_roman": "kelu vivaram"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "தயாரி",
+    "hindi": "தயார் கரோ",
+    "hindi_roman": "Thayaar karo",
+    "tamil_roman": "thayaari"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (verbs)",
+    "item_no": null,
+    "tamil": "நிறுத்து",
+    "hindi": "ருக்கோ / ரோக்கோ",
+    "hindi_roman": "Rukko / Rokko",
+    "tamil_roman": "niruthu"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (words)",
+    "item_no": null,
+    "tamil": "இதை",
+    "hindi": "இசே",
+    "hindi_roman": "E-Say / Ise",
+    "tamil_roman": "ithai"
+  },
+  {
+    "page_no": 1,
+    "section": "Lesson 1 - Step 1 (words)",
+    "item_no": null,
+    "tamil": "அதை",
+    "hindi": "உசே",
+    "hindi_roman": "U-Say / Use",
+    "tamil_roman": "athai"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "1",
+    "tamil": "இதை எடு",
+    "hindi": "இசே லோ",
+    "hindi_roman": "Ise lo",
+    "tamil_roman": "ithai edu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "2",
+    "tamil": "அதை எடு",
+    "hindi": "உசே லோ",
+    "hindi_roman": "Use lo",
+    "tamil_roman": "athai edu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "3",
+    "tamil": "இதை கொடு",
+    "hindi": "இசே தோ",
+    "hindi_roman": "Ise dho",
+    "tamil_roman": "ithai kodu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "4",
+    "tamil": "அதை கொடு",
+    "hindi": "உசே தோ",
+    "hindi_roman": "Use dho",
+    "tamil_roman": "athai kodu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "5",
+    "tamil": "இதை செய்",
+    "hindi": "இசே கரோ",
+    "hindi_roman": "Ise karo",
+    "tamil_roman": "ithai sey"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "6",
+    "tamil": "அதை செய்",
+    "hindi": "உசே கரோ",
+    "hindi_roman": "Use karo",
+    "tamil_roman": "athai sey"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "7",
+    "tamil": "இதை பாரு",
+    "hindi": "இசே தேக்கோ",
+    "hindi_roman": "Ise dheko",
+    "tamil_roman": "ithai paaru"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "8",
+    "tamil": "அதை பாரு",
+    "hindi": "உசே தேக்கோ",
+    "hindi_roman": "Use dheko",
+    "tamil_roman": "athai paaru"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "9",
+    "tamil": "இதை காட்டு",
+    "hindi": "இசே திக்காவோ",
+    "hindi_roman": "Ise dhikkaavo",
+    "tamil_roman": "ithai kaattu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "10",
+    "tamil": "அதை காட்டு",
+    "hindi": "உசே திக்காவோ",
+    "hindi_roman": "Use dhikkaavo",
+    "tamil_roman": "athai kaattu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "11",
+    "tamil": "இதை கொண்டுவா",
+    "hindi": "இசே லாவோ",
+    "hindi_roman": "Ise laavo",
+    "tamil_roman": "ithai konduvaa"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "12",
+    "tamil": "அதை கொண்டுவா",
+    "hindi": "உசே லாவோ",
+    "hindi_roman": "Use laavo",
+    "tamil_roman": "athai konduvaa"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "13",
+    "tamil": "இதை அனுப்பு",
+    "hindi": "இசே பேஜோ",
+    "hindi_roman": "Ise bhejo",
+    "tamil_roman": "ithai anuppu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "14",
+    "tamil": "அதை அனுப்பு",
+    "hindi": "உசே பேஜோ",
+    "hindi_roman": "Use bhejo",
+    "tamil_roman": "athai anuppu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "15",
+    "tamil": "இதை விற்றுவிடு",
+    "hindi": "இசே பேச்சோ",
+    "hindi_roman": "Ise becho",
+    "tamil_roman": "ithai vitruvidu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "16",
+    "tamil": "அதை விற்றுவிடு",
+    "hindi": "உசே பேச்சோ",
+    "hindi_roman": "Use becho",
+    "tamil_roman": "athai vitruvidu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "17",
+    "tamil": "இதை வை",
+    "hindi": "இசே ரக்கோ",
+    "hindi_roman": "Ise rakko",
+    "tamil_roman": "ithai vai"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "18",
+    "tamil": "அதை வை",
+    "hindi": "உசே ரக்கோ",
+    "hindi_roman": "Use rakko",
+    "tamil_roman": "athai vai"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "19",
+    "tamil": "இதை போடு",
+    "hindi": "இசே டாலோ",
+    "hindi_roman": "Ise daalo",
+    "tamil_roman": "ithai podu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "20",
+    "tamil": "அதை போடு",
+    "hindi": "உசே டாலோ",
+    "hindi_roman": "Use daalo",
+    "tamil_roman": "athai podu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "21",
+    "tamil": "இதை சாப்பிடு",
+    "hindi": "இசே காவோ",
+    "hindi_roman": "Ise kaavo",
+    "tamil_roman": "ithai saappidu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "22",
+    "tamil": "அதை சாப்பிடு",
+    "hindi": "உசே காவோ",
+    "hindi_roman": "Use kaavo",
+    "tamil_roman": "athai saappidu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "23",
+    "tamil": "இதை குடி",
+    "hindi": "இசே பியோ",
+    "hindi_roman": "Ise piyo",
+    "tamil_roman": "ithai kudi"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "24",
+    "tamil": "அதை குடி",
+    "hindi": "உசே பியோ",
+    "hindi_roman": "Use piyo",
+    "tamil_roman": "athai kudi"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "25",
+    "tamil": "இதை கேளு",
+    "hindi": "இசே மாங்கோ",
+    "hindi_roman": "Ise maango",
+    "tamil_roman": "ithai kelu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "26",
+    "tamil": "அதை கேளு",
+    "hindi": "உசே மாங்கோ",
+    "hindi_roman": "Use maango",
+    "tamil_roman": "athai kelu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "27",
+    "tamil": "இதை சொல்லு",
+    "hindi": "இசே கஹோ",
+    "hindi_roman": "Ise kaho",
+    "tamil_roman": "ithai sollu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "28",
+    "tamil": "அதை சொல்லு",
+    "hindi": "உசே கஹோ",
+    "hindi_roman": "Use kaho",
+    "tamil_roman": "athai sollu"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "29",
+    "tamil": "இதை தயாரி",
+    "hindi": "இசே தயார் கரோ",
+    "hindi_roman": "Ise thayar karo",
+    "tamil_roman": "ithai thayaari"
+  },
+  {
+    "page_no": 2,
+    "section": "Practice",
+    "item_no": "30",
+    "tamil": "அதை தயாரி",
+    "hindi": "உசே தயார் கரோ",
+    "hindi_roman": "Use thayar karo",
+    "tamil_roman": "athai thayaari"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "பேசு",
+    "hindi": "போலோ / பாத்கரோ",
+    "hindi_roman": "Bolo / Baath karo",
+    "tamil_roman": "pesu"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "எடுத்துக்கொண்டுவா",
+    "hindi": "லேக்கர் ஆவோ",
+    "hindi_roman": "Lay kar aavo",
+    "tamil_roman": "eduthukonduvaa"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "எடுத்துட்டுவா",
+    "hindi": "லேக்கர் ஆவோ",
+    "hindi_roman": "Lay kar aavo",
+    "tamil_roman": "eduthuttuvaa"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "கூட்டிக்கொண்டுவா",
+    "hindi": "ஸாத் லேக்கர் ஆவோ",
+    "hindi_roman": "Saath lay kar aavo",
+    "tamil_roman": "koottikonduvaa"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "எடுத்துட்டுபோ",
+    "hindi": "லேக்கர் ஜாவோ",
+    "hindi_roman": "Lay kar jaavo",
+    "tamil_roman": "eduthuttupo"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "எடுத்துக்கொண்டுபோ",
+    "hindi": "லேக்கர் ஜாவோ",
+    "hindi_roman": "Lay kar jaavo",
+    "tamil_roman": "eduthukondupo"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "கூட்டிக்கொண்டுபோ",
+    "hindi": "ஸாத் லேக்கர் ஜாவோ",
+    "hindi_roman": "Saath lay kar jaavo",
+    "tamil_roman": "koottikondupo"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "வாங்கு",
+    "hindi": "கரீதோ",
+    "hindi_roman": "Khareedho",
+    "tamil_roman": "vaangu"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "பாடு",
+    "hindi": "காவோ (G)",
+    "hindi_roman": "Gaa vo",
+    "tamil_roman": "paadu"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "பயன்படுத்து",
+    "hindi": "உபயோக் கரோ / இஸ்த்மால் கரோ",
+    "hindi_roman": "Upa yog karo / Isth maal karo",
+    "tamil_roman": "payanpaduthu"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "காத்திரு",
+    "hindi": "இந்தஜார் கரோ",
+    "hindi_roman": "Intha zaar karo",
+    "tamil_roman": "kaathiru"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "நில்",
+    "hindi": "கடே ரஹோ",
+    "hindi_roman": "Kaday raho",
+    "tamil_roman": "nil"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "தூங்கு",
+    "hindi": "சோவோ",
+    "hindi_roman": "So vo",
+    "tamil_roman": "thoongu"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "உட்கார்",
+    "hindi": "பைட்டோ",
+    "hindi_roman": "By tto",
+    "tamil_roman": "utkaar"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "எழுந்திரு",
+    "hindi": "உட்டோ",
+    "hindi_roman": "Utto",
+    "tamil_roman": "elunthiru"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "இரு",
+    "hindi": "ரஹோ",
+    "hindi_roman": "Raho",
+    "tamil_roman": "iru"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "போன் பண்ணு",
+    "hindi": "போன் கரோ",
+    "hindi_roman": "Phone karo",
+    "tamil_roman": "phone pannu"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "கூப்பிடு",
+    "hindi": "புலாவோ",
+    "hindi_roman": "Bu laa vo",
+    "tamil_roman": "koopidu"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (verbs)",
+    "item_no": null,
+    "tamil": "நட",
+    "hindi": "ச்சலோ",
+    "hindi_roman": "cha lo",
+    "tamil_roman": "nada"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (words)",
+    "item_no": null,
+    "tamil": "இங்கே",
+    "hindi": "யஹாங் / இதர்",
+    "hindi_roman": "Yahan / Idhar",
+    "tamil_roman": "ingae"
+  },
+  {
+    "page_no": 3,
+    "section": "Lesson 1 - Step 2 (words)",
+    "item_no": null,
+    "tamil": "அங்கே",
+    "hindi": "வஹாங் / உதர்",
+    "hindi_roman": "Vahan / Udhar",
+    "tamil_roman": "angae"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "45",
+    "tamil": "ராதாவை மேலே அனுப்பு",
+    "hindi": "ராதா கோ ஊப்பர் பேஜோ",
+    "hindi_roman": null,
+    "tamil_roman": "Radhavai melae anuppu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "46",
+    "tamil": "இதை கேட்காதே. அதை கேள்",
+    "hindi": "இஸே மத் பூச்சோ. உஸே பூச்சோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ithai ketkaathe. Athai kel"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "47",
+    "tamil": "இது என் பர்ஸ்",
+    "hindi": "யே மேரா பர்ஸ் ஹை",
+    "hindi_roman": null,
+    "tamil_roman": "Ithu en purse"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "48",
+    "tamil": "அது உன் Cell",
+    "hindi": "வோ துமாரா Cell ஹை",
+    "hindi_roman": null,
+    "tamil_roman": "Athu un Cell"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "49",
+    "tamil": "இதை எழுதாதே. படி",
+    "hindi": "இஸே மத் லிக்கோ. படோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ithai eluthaathe. Padi"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "50",
+    "tamil": "ரவியை கூப்பிடாதே. கலாவை கூப்பிடு",
+    "hindi": "ரவிகோ மத் புலாவோ. கலாகோ புலாவோ",
+    "hindi_roman": null,
+    "tamil_roman": "Raviyai koopidaathe. Kalaavai koopidu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "51",
+    "tamil": "இதை இங்கே வைக்காதே",
+    "hindi": "இஸே யஹாங் மத் ரக்கோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ithai ingae vaikkaathe"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "52",
+    "tamil": "அதை அங்கே போடாதே",
+    "hindi": "உஸே வஹாங் மத் டாலோ",
+    "hindi_roman": null,
+    "tamil_roman": "Athai angae podaathe"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "53",
+    "tamil": "அவருக்கு தமிழ் தெரியாது. இங்கிலிஷ்ல பேசு",
+    "hindi": "உன்கோ தமிழ் நஹி ஆத்தி. இங்கிலிஷ்மே பாத்கரோ",
+    "hindi_roman": null,
+    "tamil_roman": "Avarukku tamil theriyaathu. English-la pesu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "54",
+    "tamil": "எனக்கு 2 வேண்டாம்",
+    "hindi": "முஜே தோ நஹி ச்சாஹியே",
+    "hindi_roman": null,
+    "tamil_roman": "Enakku rendu vendaam"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "55",
+    "tamil": "அவரிடம் 5 இருக்கிறது. 1 கேளு",
+    "hindi": "உன்கே பாஸ் பாஞ்ச் ஹை. ஏக் மாங்கோ",
+    "hindi_roman": null,
+    "tamil_roman": "Avaridam ainthu irukkirathu. Onnu kelu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "56",
+    "tamil": "வலது பக்கமாக போ",
+    "hindi": "தாயாங் தரஃப் ஜாவோ",
+    "hindi_roman": null,
+    "tamil_roman": "Valathu pakkamaaga po"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "57",
+    "tamil": "இடது பக்கம் பார்க்காதே",
+    "hindi": "பாயாங் தரஃப் மத் தேக்கோ",
+    "hindi_roman": null,
+    "tamil_roman": "Idathu pakkam paarkkaathe"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "58",
+    "tamil": "அதை இன்று அனுப்பு",
+    "hindi": "உஸே ஆஜ் பேஜோ",
+    "hindi_roman": null,
+    "tamil_roman": "Athai indru anuppu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "59",
+    "tamil": "இதை நாளை அனுப்பு",
+    "hindi": "இஸே கல் பேஜோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ithai naalai anuppu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "60",
+    "tamil": "இங்கே நிற்காதே உள்ளே போய் பேசு",
+    "hindi": "யஹாங் கடே மத் ரஹோ. அந்தர் ஜாக்கர் பாத் கரோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ingae nirkaathe ullae poi pesu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "61",
+    "tamil": "எனக்கு காபி வேண்டும்",
+    "hindi": "முஜே காபி ச்சாஹியே",
+    "hindi_roman": null,
+    "tamil_roman": "Enakku coffee vendum"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "62",
+    "tamil": "இப்ப போய் பார்",
+    "hindi": "அப் ஜாக்கர் தேக்கோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ippa poi paar"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "63",
+    "tamil": "அவனுக்கு 2 கொடு",
+    "hindi": "உஸ்கோ தோ தோ",
+    "hindi_roman": null,
+    "tamil_roman": "Avanukku rendu kodu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "64",
+    "tamil": "அவர்களுக்கு இது தெரியாது",
+    "hindi": "உன்கோ யே நஹி மாலூம்",
+    "hindi_roman": null,
+    "tamil_roman": "Avarkalukku ithu theriyaathu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "65",
+    "tamil": "இப்படி செய்யாதே. அப்படி செய்",
+    "hindi": "ஐஸே மத் கரோ. வைஸே கரோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ippadi seiyaathe. Appadi sey"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "66",
+    "tamil": "நீ அப்புறம் வா. உடனே வராதே",
+    "hindi": "தும் பாத்மே ஆவோ. துரந்த் மத் ஆவோ",
+    "hindi_roman": null,
+    "tamil_roman": "Nee appuram vaa. Udanae varaathe"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "67",
+    "tamil": "5 ந்தேதிக்கு முன் வந்து பார்",
+    "hindi": "பாஞ்ச் தாரிக் கே பஹ்லே ஆக்கர் தேக்கோ",
+    "hindi_roman": null,
+    "tamil_roman": "Ainthu thethikku mun vanthu paar"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "68",
+    "tamil": "என்னிடம் இது மாதிரி இல்லை",
+    "hindi": "மேரே பாஸ் ஐஸா நஹி ஹை",
+    "hindi_roman": null,
+    "tamil_roman": "Yennidam ithu maathiri illai"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "69",
+    "tamil": "உடனே போய் பார்",
+    "hindi": "துரந்த் ஜாக்கர் தேக்கோ",
+    "hindi_roman": null,
+    "tamil_roman": "Udanae poi paar"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "70",
+    "tamil": "அவனுக்கு காபி வேண்டாம்",
+    "hindi": "உஸ்கோ காபி நஹி ச்சாஹியே",
+    "hindi_roman": null,
+    "tamil_roman": "Avanukku coffee vendaam"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "71",
+    "tamil": "எனக்கு ரவியை தெரியும்",
+    "hindi": "மை ரவிகோ ஜான்தா உம்",
+    "hindi_roman": null,
+    "tamil_roman": "Enakku Raviyai theriyum"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "72",
+    "tamil": "எங்க அப்பாவுக்கு மட்டன் பிடிக்கும்",
+    "hindi": "மேரே பிதாஜீகோ மட்டன் பஸந்த் ஹை",
+    "hindi_roman": null,
+    "tamil_roman": "Enga appaavukku mutton pidikkum"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "73",
+    "tamil": "என் தம்பிக்கு சிக்கன் பிடிக்காது",
+    "hindi": "மேரா சோட்டா பாயிகோ சிக்கன் நஹி பஸந்த்",
+    "hindi_roman": null,
+    "tamil_roman": "En thambikku chicken pidikkaathu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "74",
+    "tamil": "அவளுக்கு 4 கொடு",
+    "hindi": "உஸ்கோ ச்சார் தோ",
+    "hindi_roman": null,
+    "tamil_roman": "Avalukku naangu kodu"
+  },
+  {
+    "page_no": null,
+    "section": "Vocabulary sample (Swift LTA)",
+    "item_no": "75",
+    "tamil": "என்னிடம் 20,000/-ரூ இருக்கு",
+    "hindi": "மேரே பாஸ் பீஸ் ஹஸார் ரூப்யே ஹை",
+    "hindi_roman": null,
+    "tamil_roman": "Yennidam irupathaayiram roopa irukku"
+  }
+]
+  };
+
+  async function autoSync(){
+    const statusFlag = document.getElementById("syncFlag");
+    if (!EMBEDDED_BATCH.rows.length) return;
+    try {
+      const { data: already } = await sb
+        .from("sync_log")
+        .select("batch_id")
+        .eq("batch_id", EMBEDDED_BATCH.id)
+        .maybeSingle();
+      if (already) return; // already loaded previously — do nothing
+
+      if (statusFlag) statusFlag.textContent = `Adding ${EMBEDDED_BATCH.rows.length} new lines...`;
+      const { error: insertErr } = await sb.from("hindi_book").insert(EMBEDDED_BATCH.rows);
+      if (insertErr) throw insertErr;
+
+      const { error: logErr } = await sb.from("sync_log").insert({ batch_id: EMBEDDED_BATCH.id });
+      if (logErr) throw logErr;
+
+      if (statusFlag) {
+        statusFlag.textContent = `✓ Added ${EMBEDDED_BATCH.rows.length} new lines`;
+        setTimeout(()=>{ statusFlag.textContent = ""; }, 4000);
+      }
+    } catch(e){
+      if (statusFlag) statusFlag.textContent = "Sync error: " + e.message;
+      console.error("autoSync error", e);
+    }
+  }
+  window.addEventListener("DOMContentLoaded", autoSync);
+
+  // Tabs
+  document.querySelectorAll(".tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
+      if(btn.dataset.tab === "book"){
+        buildFlipIndex(false);
+      }
+    });
+  });
+  document.getElementById("refreshIndexBtn").addEventListener("click", ()=> buildFlipIndex(true));
+  document.getElementById("backToIndexBtn").addEventListener("click", ()=>{
+    document.getElementById("bookReaderView").style.display = "none";
+    document.getElementById("bookIndexView").style.display = "block";
+  });
+  document.getElementById("prevPageBtn").addEventListener("click", ()=> openUnit(currentUnit - 1));
+  document.getElementById("nextPageBtn").addEventListener("click", ()=> openUnit(currentUnit + 1));
+
+  // ---- Index: one entry per page_no (or per section, for rows with no page_no) ----
+  let flipIndex = [];   // [{ key, page_no, section, label, count }]
+  let currentUnit = -1;
+
+  async function buildFlipIndex(force){
+    const indexHint = document.getElementById("indexHint");
+    if(flipIndex.length && !force){ renderIndexList(); return; }
+    indexHint.textContent = "Loading index...";
+
+    // Only fetch the 3 columns needed to build the index — cheap even at hundreds of pages.
+    const { data, error } = await sb
+      .from("hindi_book")
+      .select("id, page_no, section")
+      .order("page_no", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
+      .limit(50000);
+
+    if(error){ indexHint.textContent = "Error: " + error.message; return; }
+    if(!data.length){ indexHint.textContent = "Nothing added yet."; document.getElementById("indexList").innerHTML = ""; return; }
+
+    const units = [];
+    for(const row of data){
+      const key = row.page_no != null ? ("p:"+row.page_no) : ("s:"+(row.section||""));
+      let last = units[units.length - 1];
+      if(!last || last.key !== key){
+        last = {
+          key,
+          page_no: row.page_no,
+          section: row.section,
+          label: row.page_no != null ? ("Page " + row.page_no + (row.section ? " — " + row.section : "")) : (row.section || "Untitled"),
+          count: 0
+        };
+        units.push(last);
+      }
+      last.count++;
+    }
+    flipIndex = units;
+    indexHint.textContent = units.length + " pages/sections · " + data.length + " lines total";
+    renderIndexList();
+  }
+
+  function renderIndexList(){
+    const indexList = document.getElementById("indexList");
+    indexList.innerHTML = flipIndex.map((u, i) => `
+      <div class="index-item" data-i="${i}">
+        <span class="tamil">${escapeHtml(u.label)}</span>
+        <span class="index-count">${u.count} lines</span>
+      </div>
+    `).join("");
+    indexList.querySelectorAll(".index-item").forEach(el=>{
+      el.addEventListener("click", ()=> openUnit(parseInt(el.dataset.i, 10)));
+    });
+  }
+
+  async function openUnit(i, highlightId){
+    if(i < 0 || i >= flipIndex.length) return;
+    currentUnit = i;
+    document.getElementById("bookIndexView").style.display = "none";
+    document.getElementById("bookReaderView").style.display = "block";
+    const unit = flipIndex[i];
+    document.getElementById("pageIndicator").textContent = `${unit.label}  (${i+1} / ${flipIndex.length})`;
+    const readerContent = document.getElementById("readerContent");
+    readerContent.innerHTML = `<p class="hint">Loading...</p>`;
+
+    let query = sb.from("hindi_book").select("*");
+    query = (unit.page_no != null)
+      ? query.eq("page_no", unit.page_no)
+      : query.is("page_no", null).eq("section", unit.section || "");
+    const { data, error } = await query.order("id", { ascending: true });
+
+    if(error){ readerContent.innerHTML = `<p class="hint">Error: ${error.message}</p>`; return; }
+
+    readerContent.innerHTML = `
+      <h2 class="tamil" style="margin-top:0;">${escapeHtml(unit.label)}</h2>
+      ${data.map(r => `
+        <div class="book-row" data-id="${r.id}">
+          <div class="num">${r.item_no ? escapeHtml(r.item_no) : ""}</div>
+          <div class="tamil-col tamil">${escapeHtml(r.tamil)}</div>
+          <div class="hindi-col tamil">${escapeHtml(r.hindi)}</div>
+        </div>
+      `).join("")}
+    `;
+
+    document.getElementById("prevPageBtn").disabled = (i === 0);
+    document.getElementById("nextPageBtn").disabled = (i === flipIndex.length - 1);
+
+    if(highlightId != null){
+      const rowEl = readerContent.querySelector(`[data-id="${highlightId}"]`);
+      if(rowEl){
+        rowEl.classList.add("highlight");
+        rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }
+
+  // Jump here from a search result — switches to the Book tab, opens the right
+  // page/section, and highlights the exact matched line.
+  async function goToInBook(pageNo, section, rowId){
+    if(!flipIndex.length){ await buildFlipIndex(false); }
+    const key = pageNo != null ? ("p:"+pageNo) : ("s:"+(section||""));
+    const idx = flipIndex.findIndex(u => u.key === key);
+
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+    document.querySelector('.tab[data-tab="book"]').classList.add("active");
+    document.getElementById("panel-book").classList.add("active");
+
+    if(idx >= 0){
+      openUnit(idx, rowId);
+    } else {
+      document.getElementById("bookIndexView").style.display = "block";
+      document.getElementById("bookReaderView").style.display = "none";
+      document.getElementById("indexHint").textContent = "Couldn't locate that page — try Refresh index.";
+    }
+  }
+
+  // Search
+  const qInput = document.getElementById("q");
+  const resultsEl = document.getElementById("results");
+  const countEl = document.getElementById("count");
+  let debounceTimer;
+
+  qInput.addEventListener("input", ()=>{
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runSearch, 250);
+  });
+
+  async function runSearch(){
+    const term = qInput.value.trim();
+    if(!term){
+      resultsEl.innerHTML = "";
+      countEl.textContent = "";
+      return;
+    }
+    countEl.textContent = "searching...";
+    const { data, error } = await sb.rpc("search_hindi_book", { search_term: term });
+
+    if(error){
+      resultsEl.innerHTML = `<div class="empty">Error: ${error.message}</div>`;
+      countEl.textContent = "";
+      return;
+    }
+    countEl.textContent = data.length + " match" + (data.length===1?"":"es");
+    if(data.length===0){
+      resultsEl.innerHTML = `<div class="empty">No matches yet for "${escapeHtml(term)}"</div>`;
+      return;
+    }
+    resultsEl.innerHTML = data.map(row=>`
+      <div class="result">
+        <div class="meta">${escapeHtml(row.section||"")} ${row.item_no?("· #"+escapeHtml(row.item_no)):""} ${row.page_no?("· p"+row.page_no):""}</div>
+        <div class="tamil-line tamil">${escapeHtml(row.tamil)}</div>
+        <div class="hindi-line tamil">${escapeHtml(row.hindi)}</div>
+        ${(row.hindi_roman||row.tamil_roman) ? `<div class="roman">${escapeHtml(row.hindi_roman||"")}${row.hindi_roman&&row.tamil_roman?" · ":""}${escapeHtml(row.tamil_roman||"")}</div>` : ""}
+        <br><button class="goto-btn" data-page="${row.page_no ?? ""}" data-section="${escapeHtml(row.section||"")}" data-id="${row.id}">→ Go to page</button>
+      </div>
+    `).join("");
+    resultsEl.querySelectorAll(".goto-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const pageNo = btn.dataset.page !== "" ? parseInt(btn.dataset.page, 10) : null;
+        goToInBook(pageNo, btn.dataset.section, parseInt(btn.dataset.id, 10));
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // Bulk import
+  document.getElementById("importBtn").addEventListener("click", async ()=>{
+    const raw = document.getElementById("bulk").value.trim();
+    const statusEl = document.getElementById("importStatus");
+    if(!raw){ statusEl.textContent="Nothing to import."; statusEl.className="status err"; return; }
+
+    const lines = raw.split("\n").map(l=>l.trim()).filter(Boolean);
+    const rows = [];
+    for(const line of lines){
+      const parts = line.split("|").map(p=>p.trim());
+      if(parts.length < 5){ continue; } // need at least page,section,item,tamil,hindi
+      const [page_no, section, item_no, tamil, hindi, hindi_roman, tamil_roman] = parts;
+      if(!tamil || !hindi) continue;
+      rows.push({
+        page_no: page_no ? parseInt(page_no) : null,
+        section: section || null,
+        item_no: item_no || null,
+        tamil, hindi,
+        hindi_roman: hindi_roman || null,
+        tamil_roman: tamil_roman || null
+      });
+    }
+    if(rows.length===0){
+      statusEl.textContent="No valid lines found — check the format.";
+      statusEl.className="status err";
+      return;
+    }
+    statusEl.textContent = `Importing ${rows.length} lines...`;
+    statusEl.className = "status";
+    const { error } = await sb.from("hindi_book").insert(rows);
+    if(error){
+      statusEl.textContent = "Error: " + error.message;
+      statusEl.className = "status err";
+    } else {
+      statusEl.textContent = `✓ Imported ${rows.length} lines successfully.`;
+      statusEl.className = "status ok";
+      document.getElementById("bulk").value = "";
+    }
+  });
+</script>
+</body>
+</html>
