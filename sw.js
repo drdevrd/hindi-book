@@ -1,5 +1,8 @@
-const CACHE = "hindi-book-shell-v1";
-const SHELL = ["./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const CACHE = "hindi-book-shell-v2";
+// index.html is deliberately NOT in this list — it must always be fetched fresh
+// (network-first below) since new content gets pushed to it regularly. Only
+// truly static assets are safe to cache-first.
+const SHELL = ["./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -17,9 +20,26 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  // Only handle same-origin shell files from cache; everything else (Supabase, etc.)
-  // always goes to the network since the data has to be live.
-  if (url.origin === self.location.origin && SHELL.some((f) => url.pathname.endsWith(f.replace("./", "")))) {
+  if (url.origin !== self.location.origin) return; // Supabase etc. — always straight to network, untouched
+
+  const isPage = e.request.mode === "navigate" || url.pathname.endsWith("index.html") || url.pathname === "/" || url.pathname.endsWith("/hindi-book/");
+
+  if (isPage) {
+    // Network-first: always try to get the latest content. Only fall back to
+    // whatever was last cached if there's genuinely no network (offline).
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  if (SHELL.some((f) => url.pathname.endsWith(f.replace("./", "")))) {
     e.respondWith(
       caches.match(e.request).then((cached) => cached || fetch(e.request))
     );
