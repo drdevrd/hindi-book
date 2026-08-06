@@ -840,11 +840,25 @@
   function scoreMatch(term, field){
     if(!field) return 0;
     field = field.toLowerCase();
-    if(field.includes(term)) return 1 + (term.length / field.length) * 0.001; // substring hit, slight bonus for tighter match
-    if(term.length <= 3) return 0; // too short for fuzzy matching to mean anything — substring only
-    const dist = levenshtein(term, field);
-    const maxLen = Math.max(term.length, field.length);
-    return maxLen ? 1 - dist / maxLen : 0;
+    // Compare the query against each word/segment individually (split on spaces, "/",
+    // punctuation) rather than the whole field string — otherwise a near-miss on one
+    // word inside a long sentence or a combined "a/b/c" field gets swamped by the
+    // length of everything else in the string.
+    const tokens = field.split(/[^a-z0-9]+/i).filter(Boolean);
+    if(!tokens.length) return 0;
+    let best = 0;
+    for(const tok of tokens){
+      let s;
+      if(tok.includes(term)) s = 1 + (term.length / tok.length) * 0.001;
+      else if(term.length <= 3) s = 0;
+      else {
+        const dist = levenshtein(term, tok);
+        const maxLen = Math.max(term.length, tok.length);
+        s = maxLen ? 1 - dist / maxLen : 0;
+      }
+      if(s > best) best = s;
+    }
+    return best;
   }
 
   function matchThreshold(termLength){
