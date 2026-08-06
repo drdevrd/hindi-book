@@ -841,9 +841,15 @@
     if(!field) return 0;
     field = field.toLowerCase();
     if(field.includes(term)) return 1 + (term.length / field.length) * 0.001; // substring hit, slight bonus for tighter match
+    if(term.length <= 3) return 0; // too short for fuzzy matching to mean anything — substring only
     const dist = levenshtein(term, field);
     const maxLen = Math.max(term.length, field.length);
     return maxLen ? 1 - dist / maxLen : 0;
+  }
+
+  function matchThreshold(termLength){
+    if(termLength <= 5) return 0.75;  // short terms: coincidental closeness is common, demand a tight match
+    return 0.6;                        // longer terms: more signal, safe to be more lenient
   }
 
   // ---- Full-table cache (fetched once, in pages of 1000, refreshed after imports) ----
@@ -902,7 +908,7 @@
       const fields = [row.tamil, row.hindi, row.hindi_roman, row.tamil_roman, row._hindiRoman2, row._tamilRoman2];
       let best = 0;
       for(const f of fields){ const s = scoreMatch(term, f || ""); if(s > best) best = s; }
-      if(best >= 0.55) scored.push({ row, score: best });
+      if(best >= matchThreshold(term.length)) scored.push({ row, score: best });
     }
     scored.sort((a,b)=> b.score - a.score);
     const data = scored.slice(0, 100).map(s=>s.row);
