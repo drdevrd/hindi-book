@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hindi Book Search</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1c1a17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hindi Book">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -173,10 +180,21 @@
   }
   .book-row{
     display:flex;
-    gap:14px;
+    gap:10px;
     padding:8px 0;
     border-bottom:1px solid var(--line);
-    align-items:baseline;
+    align-items:center;
+  }
+  .bm-btn-mini{
+    margin:0 !important;
+    flex:0 0 auto;
+    width:28px;
+    height:28px;
+    padding:0 !important;
+    line-height:28px;
+    text-align:center;
+    font-size:1rem;
+    border-radius:50%;
   }
   .book-row .num{
     flex:0 0 28px;
@@ -274,6 +292,96 @@
     font-size:0.75rem;
     cursor:pointer;
   }
+  .bm-btn{
+    margin-top:8px;
+    margin-left:8px;
+    background:transparent;
+    border:1px solid var(--muted);
+    color:var(--muted);
+    border-radius:6px;
+    padding:4px 10px;
+    font-family:inherit;
+    font-size:0.75rem;
+    cursor:pointer;
+  }
+  .bm-btn.on{
+    background:var(--accent-2);
+    border-color:var(--accent-2);
+    color:#fff;
+  }
+  .bookmark-card{
+    background:#fff;
+    border:1px solid var(--line);
+    border-left:4px solid var(--accent-2);
+    border-radius:8px;
+    padding:14px 16px;
+    margin-bottom:10px;
+  }
+  .bookmark-card .meta{
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .bookmark-card .tamil-line{font-size:1.05rem;font-weight:600;margin-bottom:4px;}
+  .bookmark-card .hindi-line{font-size:1.05rem;color:var(--accent-2);margin-bottom:2px;}
+  .bookmark-card .roman{font-size:0.85rem;color:var(--muted);font-style:italic;}
+  .note-row{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+    align-items:flex-start;
+  }
+  .note-input{
+    flex:1;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 10px;
+    font-family:inherit;
+    font-size:0.85rem;
+    background:var(--paper-2);
+    resize:vertical;
+    min-height:36px;
+  }
+  .note-save-btn{
+    background:var(--accent-2);
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    padding:8px 12px;
+    font-family:inherit;
+    font-size:0.78rem;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .bookmark-actions{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+    flex-wrap:wrap;
+  }
+  .copy-btn{
+    background:transparent;
+    border:1px solid var(--accent-2);
+    color:var(--accent-2);
+    border-radius:6px;
+    padding:4px 10px;
+    font-family:inherit;
+    font-size:0.75rem;
+    cursor:pointer;
+  }
+  .remove-btn{
+    background:transparent;
+    border:1px solid #b5502f;
+    color:#b5502f;
+    border-radius:6px;
+    padding:4px 10px;
+    font-family:inherit;
+    font-size:0.75rem;
+    cursor:pointer;
+  }
+  .copy-flash{color:var(--accent-2);font-size:0.78rem;margin-left:8px;}
 </style>
 </head>
 <body>
@@ -285,6 +393,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="search">Search</button>
     <button class="tab" data-tab="book">Book</button>
+    <button class="tab" data-tab="bookmarks">Bookmarks</button>
     <button class="tab" data-tab="add">Add lines</button>
   </div>
 </header>
@@ -316,6 +425,16 @@
       <button class="back-btn" id="backToIndexBtn">☰ Back to index</button>
       <div id="readerContent"></div>
     </div>
+  </section>
+
+  <section class="panel" id="panel-bookmarks">
+    <div class="index-toolbar">
+      <button class="refresh-btn" id="copyAllBtn">⧉ Copy all</button>
+      <span class="copy-flash" id="copyAllFlash"></span>
+      <button class="refresh-btn" id="refreshBookmarksBtn">↻ Refresh</button>
+      <span class="hint" id="bookmarksHint" style="margin:0;">Loading bookmarks...</span>
+    </div>
+    <div id="bookmarksList"></div>
   </section>
 
   <section class="panel" id="panel-add">
@@ -394,6 +513,9 @@
       document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
       if(btn.dataset.tab === "book"){
         buildFlipIndex(false);
+      }
+      if(btn.dataset.tab === "bookmarks"){
+        renderBookmarksTab(false);
       }
     });
   });
@@ -477,6 +599,7 @@
 
     if(error){ readerContent.innerHTML = `<p class="hint">Error: ${error.message}</p>`; return; }
 
+    await ensureBookmarkedIds(false);
     readerContent.innerHTML = `
       <h2 class="tamil" style="margin-top:0;">${escapeHtml(unit.label)}</h2>
       ${data.map(r => `
@@ -484,9 +607,13 @@
           <div class="num">${r.item_no ? escapeHtml(r.item_no) : ""}</div>
           <div class="tamil-col tamil">${escapeHtml(r.tamil)}</div>
           <div class="hindi-col tamil">${escapeHtml(r.hindi)}</div>
+          <button class="bm-btn bm-btn-mini${bookmarkedIds.has(r.id)?" on":""}" data-id="${r.id}" title="Bookmark">${bookmarkedIds.has(r.id)?"★":"☆"}</button>
         </div>
       `).join("")}
     `;
+    readerContent.querySelectorAll(".bm-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=> toggleBookmark(parseInt(btn.dataset.id, 10), btn));
+    });
 
     document.getElementById("prevPageBtn").disabled = (i === 0);
     document.getElementById("nextPageBtn").disabled = (i === flipIndex.length - 1);
@@ -520,6 +647,146 @@
       document.getElementById("indexHint").textContent = "Couldn't locate that page — try Refresh index.";
     }
   }
+
+  // ---- Bookmarks ----
+  let bookmarkedIds = null; // Set of hindi_book.id currently bookmarked
+
+  async function ensureBookmarkedIds(force){
+    if(bookmarkedIds && !force) return bookmarkedIds;
+    const { data, error } = await sb.from("bookmarks").select("row_id");
+    if(error){ console.error("ensureBookmarkedIds error", error); bookmarkedIds = bookmarkedIds || new Set(); return bookmarkedIds; }
+    bookmarkedIds = new Set(data.map(d => d.row_id));
+    return bookmarkedIds;
+  }
+
+  async function toggleBookmark(rowId, btnEl){
+    await ensureBookmarkedIds(false);
+    const isOn = bookmarkedIds.has(rowId);
+    if(btnEl) btnEl.disabled = true;
+    try {
+      if(isOn){
+        const { error } = await sb.from("bookmarks").delete().eq("row_id", rowId);
+        if(error) throw error;
+        bookmarkedIds.delete(rowId);
+      } else {
+        const { error } = await sb.from("bookmarks").insert({ row_id: rowId });
+        if(error) throw error;
+        bookmarkedIds.add(rowId);
+      }
+      const nowOn = bookmarkedIds.has(rowId);
+      document.querySelectorAll(`.bm-btn[data-id="${rowId}"]`).forEach(b=>{
+        b.classList.toggle("on", nowOn);
+        b.textContent = b.classList.contains("bm-btn-mini") ? (nowOn ? "★" : "☆") : (nowOn ? "★ Bookmarked" : "☆ Bookmark");
+      });
+    } catch(e){
+      alert("Bookmark error: " + e.message);
+    } finally {
+      if(btnEl) btnEl.disabled = false;
+    }
+  }
+
+  function copyToClipboard(text, flashEl){
+    navigator.clipboard.writeText(text).then(()=>{
+      if(flashEl){ flashEl.textContent = "Copied!"; setTimeout(()=>{ flashEl.textContent=""; }, 2000); }
+    }).catch(()=>{
+      if(flashEl){ flashEl.textContent = "Copy failed"; }
+    });
+  }
+
+  function buildCopyText(card){
+    const tamil = card.querySelector(".tamil-line").textContent;
+    const hindi = card.querySelector(".hindi-line").textContent;
+    const romanEl = card.querySelector(".roman");
+    const roman = romanEl ? romanEl.textContent : "";
+    const noteInput = card.querySelector(".note-input");
+    const note = noteInput ? noteInput.value.trim() : "";
+    let text = `${tamil} — ${hindi}`;
+    if(roman) text += ` (${roman})`;
+    if(note) text += `\nNote: ${note}`;
+    return text;
+  }
+
+  async function renderBookmarksTab(force){
+    const hintEl = document.getElementById("bookmarksHint");
+    const listEl = document.getElementById("bookmarksList");
+    hintEl.textContent = "Loading bookmarks...";
+    const { data, error } = await sb
+      .from("bookmarks")
+      .select("id, note, created_at, hindi_book(*)")
+      .order("created_at", { ascending: false });
+
+    if(error){ hintEl.textContent = "Error: " + error.message; return; }
+    if(!data.length){
+      hintEl.textContent = "No bookmarks yet — tap ☆ Bookmark on any search result or book line.";
+      listEl.innerHTML = "";
+      return;
+    }
+    hintEl.textContent = data.length + " bookmarked line" + (data.length===1?"":"s");
+
+    listEl.innerHTML = data.filter(bm => bm.hindi_book).map(bm => {
+      const r = bm.hindi_book;
+      return `
+        <div class="bookmark-card" data-bm-id="${bm.id}" data-row-id="${r.id}">
+          <div class="meta">${escapeHtml(r.section||"")} ${r.item_no?("· #"+escapeHtml(r.item_no)):""} ${r.page_no?("· p"+r.page_no):""}</div>
+          <div class="tamil-line tamil">${escapeHtml(r.tamil)}</div>
+          <div class="hindi-line tamil">${escapeHtml(r.hindi)}</div>
+          ${(r.hindi_roman||r.tamil_roman) ? `<div class="roman">${escapeHtml(r.hindi_roman||"")}${r.hindi_roman&&r.tamil_roman?" · ":""}${escapeHtml(r.tamil_roman||"")}</div>` : ""}
+          <div class="note-row">
+            <textarea class="note-input" placeholder="Add a note...">${escapeHtml(bm.note||"")}</textarea>
+            <button class="note-save-btn">Save note</button>
+          </div>
+          <div class="bookmark-actions">
+            <button class="copy-btn">⧉ Copy</button>
+            <button class="goto-btn" data-page="${r.page_no ?? ""}" data-section="${escapeHtml(r.section||"")}" data-id="${r.id}">→ Go to page</button>
+            <button class="remove-btn">✕ Remove</button>
+            <span class="copy-flash"></span>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    listEl.querySelectorAll(".goto-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const pageNo = btn.dataset.page !== "" ? parseInt(btn.dataset.page, 10) : null;
+        goToInBook(pageNo, btn.dataset.section, parseInt(btn.dataset.id, 10));
+      });
+    });
+    listEl.querySelectorAll(".bookmark-card").forEach(card=>{
+      const bmId = parseInt(card.dataset.bmId, 10);
+      const rowId = parseInt(card.dataset.rowId, 10);
+      const flash = card.querySelector(".copy-flash");
+
+      card.querySelector(".note-save-btn").addEventListener("click", async ()=>{
+        const noteInput = card.querySelector(".note-input");
+        const { error } = await sb.from("bookmarks").update({ note: noteInput.value }).eq("id", bmId);
+        flash.textContent = error ? "Error saving" : "Saved";
+        setTimeout(()=>{ flash.textContent=""; }, 2000);
+      });
+      card.querySelector(".copy-btn").addEventListener("click", ()=>{
+        copyToClipboard(buildCopyText(card), flash);
+      });
+      card.querySelector(".remove-btn").addEventListener("click", async ()=>{
+        if(!confirm("Remove this bookmark?")) return;
+        const { error } = await sb.from("bookmarks").delete().eq("id", bmId);
+        if(error){ alert("Error: " + error.message); return; }
+        if(bookmarkedIds) bookmarkedIds.delete(rowId);
+        document.querySelectorAll(`.bm-btn[data-id="${rowId}"]`).forEach(b=>{
+          b.classList.remove("on");
+          b.textContent = b.classList.contains("bm-btn-mini") ? "☆" : "☆ Bookmark";
+        });
+        renderBookmarksTab(true);
+      });
+    });
+  }
+
+  document.getElementById("refreshBookmarksBtn").addEventListener("click", ()=> renderBookmarksTab(true));
+  document.getElementById("copyAllBtn").addEventListener("click", ()=>{
+    const cards = document.querySelectorAll("#bookmarksList .bookmark-card");
+    const flash = document.getElementById("copyAllFlash");
+    if(!cards.length){ if(flash){ flash.textContent = "Nothing to copy"; setTimeout(()=>{flash.textContent="";},2000); } return; }
+    const text = Array.from(cards).map(buildCopyText).join("\n\n");
+    copyToClipboard(text, flash);
+  });
 
   // ---- Best-effort Tamil-script -> Latin transliteration ----
   // Used so Hindi-transliteration searches (e.g. "usko") still match rows where
@@ -645,13 +912,14 @@
       resultsEl.innerHTML = `<div class="empty">No matches yet for "${escapeHtml(rawTerm)}"</div>`;
       return;
     }
+    await ensureBookmarkedIds(false);
     resultsEl.innerHTML = data.map(row=>`
       <div class="result">
         <div class="meta">${escapeHtml(row.section||"")} ${row.item_no?("· #"+escapeHtml(row.item_no)):""} ${row.page_no?("· p"+row.page_no):""}</div>
         <div class="tamil-line tamil">${escapeHtml(row.tamil)}</div>
         <div class="hindi-line tamil">${escapeHtml(row.hindi)}</div>
         ${(row.hindi_roman||row.tamil_roman) ? `<div class="roman">${escapeHtml(row.hindi_roman||"")}${row.hindi_roman&&row.tamil_roman?" · ":""}${escapeHtml(row.tamil_roman||"")}</div>` : ""}
-        <br><button class="goto-btn" data-page="${row.page_no ?? ""}" data-section="${escapeHtml(row.section||"")}" data-id="${row.id}">→ Go to page</button>
+        <br><button class="goto-btn" data-page="${row.page_no ?? ""}" data-section="${escapeHtml(row.section||"")}" data-id="${row.id}">→ Go to page</button><button class="bm-btn${bookmarkedIds.has(row.id)?" on":""}" data-id="${row.id}">${bookmarkedIds.has(row.id)?"★ Bookmarked":"☆ Bookmark"}</button>
       </div>
     `).join("");
     resultsEl.querySelectorAll(".goto-btn").forEach(btn=>{
@@ -659,6 +927,9 @@
         const pageNo = btn.dataset.page !== "" ? parseInt(btn.dataset.page, 10) : null;
         goToInBook(pageNo, btn.dataset.section, parseInt(btn.dataset.id, 10));
       });
+    });
+    resultsEl.querySelectorAll(".bm-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=> toggleBookmark(parseInt(btn.dataset.id, 10), btn));
     });
   }
 
@@ -706,6 +977,13 @@
       allRowsCache = null; // force fresh fetch so newly added rows are searchable right away
     }
   });
+
+  // Register service worker so this can be installed as an app (Add to Home Screen)
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", ()=>{
+      navigator.serviceWorker.register("sw.js").catch(e=> console.warn("SW registration failed", e));
+    });
+  }
 </script>
 </body>
 </html>
