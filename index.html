@@ -381,7 +381,39 @@
     font-size:0.75rem;
     cursor:pointer;
   }
+  .remove-btn.armed{
+    background:#b5502f;
+    color:#fff;
+    font-weight:600;
+  }
   .copy-flash{color:var(--accent-2);font-size:0.78rem;margin-left:8px;}
+  .bm-toast{
+    display:none;
+    position:sticky;
+    bottom:14px;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    background:var(--ink);
+    color:var(--paper);
+    border-radius:10px;
+    padding:12px 16px;
+    font-size:0.85rem;
+    margin-top:14px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.2);
+  }
+  .bm-toast button{
+    background:var(--paper);
+    color:var(--ink);
+    border:none;
+    border-radius:6px;
+    padding:6px 14px;
+    font-family:inherit;
+    font-weight:600;
+    font-size:0.8rem;
+    cursor:pointer;
+    white-space:nowrap;
+  }
 </style>
 </head>
 <body>
@@ -435,6 +467,7 @@
       <span class="hint" id="bookmarksHint" style="margin:0;">Loading bookmarks...</span>
     </div>
     <div id="bookmarksList"></div>
+    <div id="bmToast" class="bm-toast"></div>
   </section>
 
   <section class="panel" id="panel-add">
@@ -766,8 +799,22 @@
       card.querySelector(".copy-btn").addEventListener("click", ()=>{
         copyToClipboard(buildCopyText(card), flash);
       });
-      card.querySelector(".remove-btn").addEventListener("click", async ()=>{
-        if(!confirm("Remove this bookmark?")) return;
+      const removeBtn = card.querySelector(".remove-btn");
+      let armTimer = null;
+      removeBtn.addEventListener("click", async ()=>{
+        if(!removeBtn.classList.contains("armed")){
+          // First tap: arm it, don't delete yet.
+          removeBtn.classList.add("armed");
+          removeBtn.textContent = "Tap again to remove";
+          armTimer = setTimeout(()=>{
+            removeBtn.classList.remove("armed");
+            removeBtn.textContent = "✕ Remove";
+          }, 4000);
+          return;
+        }
+        // Second tap within the window: actually remove it.
+        clearTimeout(armTimer);
+        const noteVal = card.querySelector(".note-input").value;
         const { error } = await sb.from("bookmarks").delete().eq("id", bmId);
         if(error){ alert("Error: " + error.message); return; }
         if(bookmarkedIds) bookmarkedIds.delete(rowId);
@@ -776,8 +823,62 @@
           b.textContent = b.classList.contains("bm-btn-mini") ? "☆" : "☆ Bookmark";
         });
         renderBookmarksTab(true);
+        offerUndo("Bookmark removed.", async ()=>{
+          const { error: insErr } = await sb.from("bookmarks").insert({ row_id: rowId, note: noteVal });
+          if(insErr){ alert("Couldn't restore: " + insErr.message); return; }
+          if(bookmarkedIds) bookmarkedIds.add(rowId);
+          document.querySelectorAll(`.bm-btn[data-id="${rowId}"]`).forEach(b=>{
+            b.classList.add("on");
+            b.textContent = b.classList.contains("bm-btn-mini") ? "★" : "★ Bookmarked";
+          });
+          renderBookmarksTab(true);
+          offerUndo("Bookmark restored.", async ()=>{
+            removeBtnAction(rowId, noteVal);
+          });
+        });
       });
     });
+  }
+
+  // Removes a bookmark by row_id (used by the "redo removal" path after an undo).
+  async function removeBtnAction(rowId, noteVal){
+    const { data: existing } = await sb.from("bookmarks").select("id").eq("row_id", rowId).maybeSingle();
+    if(!existing) return;
+    const { error } = await sb.from("bookmarks").delete().eq("id", existing.id);
+    if(error){ alert("Error: " + error.message); return; }
+    if(bookmarkedIds) bookmarkedIds.delete(rowId);
+    document.querySelectorAll(`.bm-btn[data-id="${rowId}"]`).forEach(b=>{
+      b.classList.remove("on");
+      b.textContent = b.classList.contains("bm-btn-mini") ? "☆" : "☆ Bookmark";
+    });
+    renderBookmarksTab(true);
+    offerUndo("Bookmark removed.", async ()=>{
+      const { error: insErr } = await sb.from("bookmarks").insert({ row_id: rowId, note: noteVal });
+      if(insErr) return;
+      if(bookmarkedIds) bookmarkedIds.add(rowId);
+      document.querySelectorAll(`.bm-btn[data-id="${rowId}"]`).forEach(b=>{
+        b.classList.add("on");
+        b.textContent = b.classList.contains("bm-btn-mini") ? "★" : "★ Bookmarked";
+      });
+      renderBookmarksTab(true);
+    });
+  }
+
+  // Shows a temporary toast with an action button (Undo, or Redo-removal).
+  // Re-triggering offerUndo replaces whatever toast is currently showing.
+  let undoToastTimer = null;
+  function offerUndo(message, onAction){
+    const toast = document.getElementById("bmToast");
+    if(!toast) return;
+    clearTimeout(undoToastTimer);
+    toast.innerHTML = `<span>${escapeHtml(message)}</span><button id="bmToastBtn">Undo</button>`;
+    toast.style.display = "flex";
+    document.getElementById("bmToastBtn").addEventListener("click", ()=>{
+      clearTimeout(undoToastTimer);
+      toast.style.display = "none";
+      onAction();
+    }, { once: true });
+    undoToastTimer = setTimeout(()=>{ toast.style.display = "none"; }, 8000);
   }
 
   document.getElementById("refreshBookmarksBtn").addEventListener("click", ()=> renderBookmarksTab(true));
