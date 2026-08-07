@@ -317,12 +317,39 @@
     padding:14px 16px;
     margin-bottom:10px;
   }
+  .bookmark-card .meta-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    margin-bottom:6px;
+  }
   .bookmark-card .meta{
     font-size:0.72rem;
     text-transform:uppercase;
     letter-spacing:0.04em;
     color:var(--muted);
-    margin-bottom:6px;
+    margin-bottom:0;
+  }
+  .reorder-btns{
+    display:flex;
+    gap:4px;
+    flex:0 0 auto;
+  }
+  .reorder-btn{
+    width:28px;
+    height:28px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    border-radius:6px;
+    font-size:0.9rem;
+    line-height:1;
+    cursor:pointer;
+  }
+  .reorder-btn:disabled{
+    opacity:0.3;
+    cursor:default;
   }
   .bookmark-card .tamil-line{font-size:1.05rem;font-weight:600;margin-bottom:4px;}
   .bookmark-card .hindi-line{font-size:1.05rem;color:var(--accent-2);margin-bottom:2px;}
@@ -746,8 +773,8 @@
     hintEl.textContent = "Loading bookmarks...";
     const { data, error } = await sb
       .from("bookmarks")
-      .select("id, note, created_at, hindi_book(*)")
-      .order("created_at", { ascending: false });
+      .select("id, note, sort_order, hindi_book(*)")
+      .order("sort_order", { ascending: true, nullsFirst: false });
 
     if(error){ hintEl.textContent = "Error: " + error.message; return; }
     if(!data.length){
@@ -757,11 +784,20 @@
     }
     hintEl.textContent = data.length + " bookmarked line" + (data.length===1?"":"s");
 
-    listEl.innerHTML = data.filter(bm => bm.hindi_book).map(bm => {
+    const filtered = data.filter(bm => bm.hindi_book);
+    listEl.innerHTML = filtered.map((bm, i) => {
       const r = bm.hindi_book;
+      const isFirst = i === 0;
+      const isLast = i === filtered.length - 1;
       return `
-        <div class="bookmark-card" data-bm-id="${bm.id}" data-row-id="${r.id}">
-          <div class="meta">${escapeHtml(r.section||"")} ${r.item_no?("· #"+escapeHtml(r.item_no)):""} ${r.page_no?("· p"+r.page_no):""}</div>
+        <div class="bookmark-card" data-bm-id="${bm.id}" data-row-id="${r.id}" data-sort="${bm.sort_order ?? ""}">
+          <div class="meta-row">
+            <div class="meta">${escapeHtml(r.section||"")} ${r.item_no?("· #"+escapeHtml(r.item_no)):""} ${r.page_no?("· p"+r.page_no):""}</div>
+            <div class="reorder-btns">
+              <button class="reorder-btn up-btn" ${isFirst?"disabled":""} title="Move up">↑</button>
+              <button class="reorder-btn down-btn" ${isLast?"disabled":""} title="Move down">↓</button>
+            </div>
+          </div>
           <div class="tamil-line tamil">${escapeHtml(r.tamil)}</div>
           <div class="hindi-line tamil">${escapeHtml(r.hindi)}</div>
           ${(r.hindi_roman||r.tamil_roman) ? `<div class="roman">${escapeHtml(r.hindi_roman||"")}${r.hindi_roman&&r.tamil_roman?" · ":""}${escapeHtml(r.tamil_roman||"")}</div>` : ""}
@@ -778,6 +814,13 @@
         </div>
       `;
     }).join("");
+
+    listEl.querySelectorAll(".reorder-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const card = btn.closest(".bookmark-card");
+        moveBookmark(card, btn.classList.contains("up-btn") ? "up" : "down");
+      });
+    });
 
     listEl.querySelectorAll(".goto-btn").forEach(btn=>{
       btn.addEventListener("click", ()=>{
@@ -838,6 +881,22 @@
         });
       });
     });
+  }
+
+  // Swaps sort_order with the adjacent card so the list order persists.
+  async function moveBookmark(card, direction){
+    const sibling = direction === "up" ? card.previousElementSibling : card.nextElementSibling;
+    if(!sibling || !sibling.classList.contains("bookmark-card")) return;
+    const bmId = parseInt(card.dataset.bmId, 10);
+    const sibBmId = parseInt(sibling.dataset.bmId, 10);
+    const order = card.dataset.sort;
+    const sibOrder = sibling.dataset.sort;
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      sb.from("bookmarks").update({ sort_order: sibOrder }).eq("id", bmId),
+      sb.from("bookmarks").update({ sort_order: order }).eq("id", sibBmId)
+    ]);
+    if(e1 || e2){ alert("Couldn't reorder: " + (e1 || e2).message); return; }
+    renderBookmarksTab(true);
   }
 
   // Removes a bookmark by row_id (used by the "redo removal" path after an undo).
