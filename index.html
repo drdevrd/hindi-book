@@ -354,33 +354,86 @@
   .bookmark-card .tamil-line{font-size:1.05rem;font-weight:600;margin-bottom:4px;}
   .bookmark-card .hindi-line{font-size:1.05rem;color:var(--accent-2);margin-bottom:2px;}
   .bookmark-card .roman{font-size:0.85rem;color:var(--muted);font-style:italic;}
-  .note-row{
-    display:flex;
-    gap:8px;
-    margin-top:10px;
-    align-items:flex-start;
-  }
-  .note-input{
-    flex:1;
+  .note-toggle-btn{
+    display:block;
+    width:100%;
+    text-align:left;
+    background:var(--paper-2);
     border:1px solid var(--line);
-    border-radius:6px;
-    padding:8px 10px;
+    border-radius:8px;
+    padding:8px 12px;
     font-family:inherit;
     font-size:0.85rem;
-    background:var(--paper-2);
-    resize:vertical;
-    min-height:36px;
+    color:var(--ink);
+    margin-top:10px;
+    cursor:pointer;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
   }
-  .note-save-btn{
+  .note-modal-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(28,26,23,0.55);
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+    padding:20px;
+  }
+  .note-modal-overlay.open{ display:flex; }
+  .note-modal{
+    background:#fff;
+    border-radius:14px;
+    padding:20px;
+    width:100%;
+    max-width:480px;
+    max-height:80vh;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .note-modal-context{
+    font-size:0.95rem;
+    color:var(--muted);
+    padding-bottom:10px;
+    border-bottom:1px solid var(--line);
+  }
+  .note-modal-textarea{
+    flex:1;
+    min-height:180px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px;
+    font-family:inherit;
+    font-size:0.95rem;
+    resize:vertical;
+    background:var(--paper-2);
+  }
+  .note-modal-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+  }
+  .note-modal-cancel{
+    background:transparent;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 18px;
+    font-family:inherit;
+    font-size:0.85rem;
+    cursor:pointer;
+  }
+  .note-modal-save{
     background:var(--accent-2);
     color:#fff;
     border:none;
-    border-radius:6px;
-    padding:8px 12px;
+    border-radius:8px;
+    padding:10px 18px;
     font-family:inherit;
-    font-size:0.78rem;
+    font-weight:600;
+    font-size:0.85rem;
     cursor:pointer;
-    white-space:nowrap;
   }
   .bookmark-actions{
     display:flex;
@@ -496,6 +549,17 @@
     <div id="bookmarksList"></div>
     <div id="bmToast" class="bm-toast"></div>
   </section>
+
+  <div id="noteModalOverlay" class="note-modal-overlay">
+    <div class="note-modal">
+      <div class="note-modal-context tamil" id="noteModalContext"></div>
+      <textarea id="noteModalTextarea" class="note-modal-textarea" placeholder="Add a note..."></textarea>
+      <div class="note-modal-actions">
+        <button id="noteModalCancel" class="note-modal-cancel">Cancel</button>
+        <button id="noteModalSave" class="note-modal-save">Save note</button>
+      </div>
+    </div>
+  </div>
 
   <section class="panel" id="panel-add">
     <div class="format-note">
@@ -759,13 +823,55 @@
     const hindi = card.querySelector(".hindi-line").textContent;
     const romanEl = card.querySelector(".roman");
     const roman = romanEl ? romanEl.textContent : "";
-    const noteInput = card.querySelector(".note-input");
-    const note = noteInput ? noteInput.value.trim() : "";
+    const note = (card.dataset.note || "").trim();
     let text = `${tamil} — ${hindi}`;
     if(roman) text += ` (${roman})`;
     if(note) text += `\nNote: ${note}`;
     return text;
   }
+
+  function truncateText(s, n){
+    if(!s) return "";
+    return s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
+  }
+
+  // ---- Note popup (opens on tap, keeps the bookmark list compact) ----
+  let activeNoteBmId = null;
+  let activeNoteCard = null;
+
+  function openNoteModal(bmId, note, context, card){
+    activeNoteBmId = bmId;
+    activeNoteCard = card;
+    document.getElementById("noteModalContext").textContent = context;
+    const ta = document.getElementById("noteModalTextarea");
+    ta.value = note || "";
+    document.getElementById("noteModalOverlay").classList.add("open");
+    ta.focus();
+  }
+  function closeNoteModal(){
+    document.getElementById("noteModalOverlay").classList.remove("open");
+    activeNoteBmId = null;
+    activeNoteCard = null;
+  }
+  document.getElementById("noteModalCancel").addEventListener("click", closeNoteModal);
+  document.getElementById("noteModalOverlay").addEventListener("click", (e)=>{
+    if(e.target.id === "noteModalOverlay") closeNoteModal();
+  });
+  document.getElementById("noteModalSave").addEventListener("click", async ()=>{
+    if(activeNoteBmId == null) return;
+    const val = document.getElementById("noteModalTextarea").value;
+    const saveBtn = document.getElementById("noteModalSave");
+    saveBtn.disabled = true;
+    const { error } = await sb.from("bookmarks").update({ note: val }).eq("id", activeNoteBmId);
+    saveBtn.disabled = false;
+    if(error){ alert("Error saving note: " + error.message); return; }
+    if(activeNoteCard){
+      activeNoteCard.dataset.note = val;
+      const btn = activeNoteCard.querySelector(".note-toggle-btn");
+      if(btn) btn.textContent = "📝 " + (val ? truncateText(val, 44) : "+ Add note");
+    }
+    closeNoteModal();
+  });
 
   async function renderBookmarksTab(force){
     const hintEl = document.getElementById("bookmarksHint");
@@ -789,8 +895,9 @@
       const r = bm.hindi_book;
       const isFirst = i === 0;
       const isLast = i === filtered.length - 1;
+      const notePreview = bm.note ? truncateText(bm.note, 44) : "+ Add note";
       return `
-        <div class="bookmark-card" data-bm-id="${bm.id}" data-row-id="${r.id}" data-sort="${bm.sort_order ?? ""}">
+        <div class="bookmark-card" data-bm-id="${bm.id}" data-row-id="${r.id}" data-sort="${bm.sort_order ?? ""}" data-note="${escapeHtml(bm.note||"")}">
           <div class="meta-row">
             <div class="meta">${escapeHtml(r.section||"")} ${r.item_no?("· #"+escapeHtml(r.item_no)):""} ${r.page_no?("· p"+r.page_no):""}</div>
             <div class="reorder-btns">
@@ -801,10 +908,7 @@
           <div class="tamil-line tamil">${escapeHtml(r.tamil)}</div>
           <div class="hindi-line tamil">${escapeHtml(r.hindi)}</div>
           ${(r.hindi_roman||r.tamil_roman) ? `<div class="roman">${escapeHtml(r.hindi_roman||"")}${r.hindi_roman&&r.tamil_roman?" · ":""}${escapeHtml(r.tamil_roman||"")}</div>` : ""}
-          <div class="note-row">
-            <textarea class="note-input" placeholder="Add a note...">${escapeHtml(bm.note||"")}</textarea>
-            <button class="note-save-btn">Save note</button>
-          </div>
+          <button class="note-toggle-btn">📝 ${escapeHtml(notePreview)}</button>
           <div class="bookmark-actions">
             <button class="copy-btn">⧉ Copy</button>
             <button class="goto-btn" data-page="${r.page_no ?? ""}" data-section="${escapeHtml(r.section||"")}" data-id="${r.id}">→ Go to page</button>
@@ -833,11 +937,9 @@
       const rowId = parseInt(card.dataset.rowId, 10);
       const flash = card.querySelector(".copy-flash");
 
-      card.querySelector(".note-save-btn").addEventListener("click", async ()=>{
-        const noteInput = card.querySelector(".note-input");
-        const { error } = await sb.from("bookmarks").update({ note: noteInput.value }).eq("id", bmId);
-        flash.textContent = error ? "Error saving" : "Saved";
-        setTimeout(()=>{ flash.textContent=""; }, 2000);
+      card.querySelector(".note-toggle-btn").addEventListener("click", ()=>{
+        const context = card.querySelector(".tamil-line").textContent + " — " + card.querySelector(".hindi-line").textContent;
+        openNoteModal(bmId, card.dataset.note || "", context, card);
       });
       card.querySelector(".copy-btn").addEventListener("click", ()=>{
         copyToClipboard(buildCopyText(card), flash);
@@ -857,7 +959,7 @@
         }
         // Second tap within the window: actually remove it.
         clearTimeout(armTimer);
-        const noteVal = card.querySelector(".note-input").value;
+        const noteVal = card.dataset.note || "";
         const { error } = await sb.from("bookmarks").delete().eq("id", bmId);
         if(error){ alert("Error: " + error.message); return; }
         if(bookmarkedIds) bookmarkedIds.delete(rowId);
