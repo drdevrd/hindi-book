@@ -1272,13 +1272,6 @@
       flipIndex = [];      // force the Book index to rebuild too, so "Go to page" finds new pages
     }
   });
-
-  // Register service worker so this can be installed as an app (Add to Home Screen)
-  if("serviceWorker" in navigator){
-    window.addEventListener("load", ()=>{
-      navigator.serviceWorker.register("sw.js").catch(e=> console.warn("SW registration failed", e));
-    });
-  }
 </script>
 </body>
 </html>
