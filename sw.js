@@ -1,47 +1,22 @@
-const CACHE = "hindi-book-shell-v2";
-// index.html is deliberately NOT in this list — it must always be fetched fresh
-// (network-first below) since new content gets pushed to it regularly. Only
-// truly static assets are safe to cache-first.
-const SHELL = ["./manifest.json", "./icon-192.png", "./icon-512.png"];
+// This service worker intentionally does nothing except delete every cache
+// it or its predecessor ever created, then unregister itself so the browser
+// goes back to plain, uncached network requests for everything.
+//
+// Why: caching the app shell caused real, repeated problems (the app getting
+// stuck showing an old version). This app needs a live connection to
+// Supabase to do anything useful anyway, so there was never a real offline
+// benefit worth that risk. Simplest fix: stop caching entirely.
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    )
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+      .then(() => self.registration.unregister())
+      .then(() => self.clients.matchAll())
+      .then((clients) => clients.forEach((client) => client.navigate(client.url)))
   );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (url.origin !== self.location.origin) return; // Supabase etc. — always straight to network, untouched
-
-  const isPage = e.request.mode === "navigate" || url.pathname.endsWith("index.html") || url.pathname === "/" || url.pathname.endsWith("/hindi-book/");
-
-  if (isPage) {
-    // Network-first: always try to get the latest content. Only fall back to
-    // whatever was last cached if there's genuinely no network (offline).
-    e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
-          return res;
-        })
-        .catch(() => caches.match(e.request))
-    );
-    return;
-  }
-
-  if (SHELL.some((f) => url.pathname.endsWith(f.replace("./", "")))) {
-    e.respondWith(
-      caches.match(e.request).then((cached) => cached || fetch(e.request))
-    );
-  }
 });
