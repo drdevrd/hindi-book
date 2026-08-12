@@ -203,6 +203,7 @@
   }
   .book-row .tamil-col{flex:1;font-weight:600;}
   .book-row .hindi-col{flex:1;color:var(--accent-2);}
+  .book-roman{font-size:0.75rem;color:var(--muted);font-style:italic;margin-top:2px;}
   .refresh-btn{
     background:transparent;
     border:1.5px solid var(--ink);
@@ -750,7 +751,10 @@
         <div class="book-row" data-id="${r.id}">
           <div class="num">${r.item_no ? escapeHtml(r.item_no) : ""}</div>
           <div class="tamil-col tamil">${escapeHtml(r.tamil)}</div>
-          <div class="hindi-col tamil">${escapeHtml(r.hindi)}</div>
+          <div class="hindi-col">
+            <div class="tamil">${escapeHtml(r.hindi)}</div>
+            <div class="book-roman">${escapeHtml(r.hindi_roman || tamilToRoman(r.hindi))}</div>
+          </div>
           <button class="bm-btn bm-btn-mini${bookmarkedIds.has(r.id)?" on":""}" data-id="${r.id}" title="Bookmark">${bookmarkedIds.has(r.id)?"★":"☆"}</button>
         </div>
       `).join("")}
@@ -934,7 +938,7 @@
           </div>
           <div class="tamil-line tamil">${escapeHtml(r.tamil)}</div>
           <div class="hindi-line tamil">${escapeHtml(r.hindi)}</div>
-          ${(r.hindi_roman||r.tamil_roman) ? `<div class="roman">${escapeHtml(r.hindi_roman||"")}${r.hindi_roman&&r.tamil_roman?" · ":""}${escapeHtml(r.tamil_roman||"")}</div>` : ""}
+          ${romanLine(r)}
           <button class="note-toggle-btn">📝 ${escapeHtml(notePreview)}</button>
           <div class="bookmark-actions">
             <button class="copy-btn">⧉ Copy</button>
@@ -1105,6 +1109,15 @@
     return out.toLowerCase();
   }
 
+  // Always shows a Hindi transliteration line (and Tamil transliteration if
+  // available) — falls back to auto-computed romanization when the book
+  // itself didn't print an English column for a given line.
+  function romanLine(row){
+    const hr = row.hindi_roman || tamilToRoman(row.hindi);
+    const tr = row.tamil_roman || tamilToRoman(row.tamil);
+    return `<div class="roman">${escapeHtml(hr)}${tr ? " · " + escapeHtml(tr) : ""}</div>`;
+  }
+
   // ---- Fuzzy scoring (handles typos, extra/missing letters) ----
   function levenshtein(a, b){
     const m = a.length, n = b.length;
@@ -1228,7 +1241,7 @@
         <div class="meta">${escapeHtml(row.section||"")} ${row.item_no?("· #"+escapeHtml(row.item_no)):""} ${row.page_no?("· p"+row.page_no):""}</div>
         <div class="tamil-line tamil">${escapeHtml(row.tamil)}</div>
         <div class="hindi-line tamil">${escapeHtml(row.hindi)}</div>
-        ${(row.hindi_roman||row.tamil_roman) ? `<div class="roman">${escapeHtml(row.hindi_roman||"")}${row.hindi_roman&&row.tamil_roman?" · ":""}${escapeHtml(row.tamil_roman||"")}</div>` : ""}
+        ${romanLine(row)}
         <br><button class="goto-btn" data-page="${row.page_no ?? ""}" data-section="${escapeHtml(row.section||"")}" data-id="${row.id}">→ Go to page</button><button class="bm-btn${bookmarkedIds.has(row.id)?" on":""}" data-id="${row.id}">${bookmarkedIds.has(row.id)?"★ Bookmarked":"☆ Bookmark"}</button>
       </div>
     `).join("");
