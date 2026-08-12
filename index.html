@@ -619,6 +619,7 @@
         totalAdded += batch.rows.length;
       }
       allRowsCache = null; // force fresh fetch so newly added rows are searchable right away
+      flipIndex = [];      // force the Book index to rebuild too, so "Go to page" finds new pages
 
       if (statusFlag) {
         statusFlag.textContent = `✓ Added ${totalAdded} lines (${pending.length} batch${pending.length===1?"":"es"} backfilled)`;
@@ -1260,6 +1261,7 @@
       statusEl.className = "status ok";
       document.getElementById("bulk").value = "";
       allRowsCache = null; // force fresh fetch so newly added rows are searchable right away
+      flipIndex = [];      // force the Book index to rebuild too, so "Go to page" finds new pages
     }
   });
 
