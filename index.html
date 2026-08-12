@@ -760,7 +760,15 @@
   async function goToInBook(pageNo, section, rowId){
     if(!flipIndex.length){ await buildFlipIndex(false); }
     const key = pageNo != null ? ("p:"+pageNo) : ("s:"+(section||""));
-    const idx = flipIndex.findIndex(u => u.key === key);
+    let idx = flipIndex.findIndex(u => u.key === key);
+
+    if(idx < 0){
+      // Not found — the cached index might be stale for some reason.
+      // Force a genuinely fresh rebuild from the database and try once more
+      // before giving up, so this can't get permanently stuck.
+      await buildFlipIndex(true);
+      idx = flipIndex.findIndex(u => u.key === key);
+    }
 
     document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
@@ -772,7 +780,7 @@
     } else {
       document.getElementById("bookIndexView").style.display = "block";
       document.getElementById("bookReaderView").style.display = "none";
-      document.getElementById("indexHint").textContent = "Couldn't locate that page — try Refresh index.";
+      document.getElementById("indexHint").textContent = `Couldn't find page ${pageNo ?? ""} (section: ${section || "none"}) even after refreshing — tell Claude this exact message.`;
     }
   }
 
