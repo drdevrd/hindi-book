@@ -665,14 +665,30 @@
     indexHint.textContent = "Loading index...";
 
     // Only fetch the 3 columns needed to build the index — cheap even at hundreds of pages.
-    const { data, error } = await sb
-      .from("hindi_book")
-      .select("id, page_no, section")
-      .order("page_no", { ascending: true, nullsFirst: false })
-      .order("id", { ascending: true })
-      .limit(50000);
+    // Supabase caps any single response at 1000 rows regardless of .limit(), so this has
+    // to paginate through .range() just like the search cache does, or anything past the
+    // first 1000 rows silently goes missing from the index.
+    let data = [];
+    let from = 0;
+    const PAGE = 1000;
+    try {
+      while(true){
+        const { data: chunk, error } = await sb
+          .from("hindi_book")
+          .select("id, page_no, section")
+          .order("page_no", { ascending: true, nullsFirst: false })
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if(error) throw error;
+        data = data.concat(chunk);
+        if(chunk.length < PAGE) break;
+        from += PAGE;
+      }
+    } catch(e){
+      indexHint.textContent = "Error: " + e.message;
+      return;
+    }
 
-    if(error){ indexHint.textContent = "Error: " + error.message; return; }
     if(!data.length){ indexHint.textContent = "Nothing added yet."; document.getElementById("indexList").innerHTML = ""; return; }
 
     const units = [];
