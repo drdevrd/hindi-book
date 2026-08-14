@@ -507,6 +507,7 @@
     <button class="tab active" data-tab="search">Search</button>
     <button class="tab" data-tab="book">Book</button>
     <button class="tab" data-tab="bookmarks">Bookmarks</button>
+    <button class="tab" data-tab="translate">Translate</button>
     <button class="tab" data-tab="add">Add lines</button>
   </div>
 </header>
@@ -564,6 +565,14 @@
       </div>
     </div>
   </div>
+
+  <section class="panel" id="panel-translate">
+    <p class="hint">Type a Tamil sentence — script or English transliteration, either works — and get a live Hindi translation, written the same way as the rest of this book.</p>
+    <textarea id="translateInput" class="note-modal-textarea" style="min-height:90px;width:100%;box-sizing:border-box;" placeholder="e.g. நான் நாளைக்கு வருவேன்  or  naan naalaikku varuven"></textarea>
+    <button class="primary" id="translateBtn" style="margin-top:12px;">Translate</button>
+    <div id="translateStatus" class="hint" style="margin-top:10px;"></div>
+    <div id="translateResult"></div>
+  </section>
 
   <section class="panel" id="panel-add">
     <div class="format-note">
@@ -1310,6 +1319,68 @@
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
+
+  // ---- Live translation (Tamil -> Hindi) via a secure server-side relay ----
+  async function translateSentence(tamilText){
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/translate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "apikey": SUPABASE_KEY
+      },
+      body: JSON.stringify({ tamil: tamilText })
+    });
+    const data = await resp.json();
+    if(!resp.ok || data.error){ throw new Error(data.error || "Translation failed"); }
+    return data;
+  }
+
+  function renderTranslateResult(data, originalInput){
+    const el = document.getElementById("translateResult");
+    el.innerHTML = `
+      <div class="result" style="margin-top:14px;">
+        <div class="tamil-line tamil">${escapeHtml(data.tamil || originalInput)}</div>
+        <div class="hindi-line tamil">${escapeHtml(data.hindi || "")}</div>
+        <div class="roman">${escapeHtml(data.hindi_roman||"")}${data.tamil_roman?" · "+escapeHtml(data.tamil_roman):""}</div>
+        <br><button class="goto-btn" id="saveTranslationBtn">💾 Save to my book</button>
+        <span class="copy-flash" id="saveTranslationFlash"></span>
+      </div>
+    `;
+    document.getElementById("saveTranslationBtn").addEventListener("click", async ()=>{
+      const flash = document.getElementById("saveTranslationFlash");
+      const { error } = await sb.from("hindi_book").insert({
+        page_no: null,
+        section: "My Practice Sentences",
+        item_no: null,
+        tamil: data.tamil || originalInput,
+        hindi: data.hindi,
+        hindi_roman: data.hindi_roman || null,
+        tamil_roman: data.tamil_roman || null
+      });
+      if(error){ flash.textContent = "Error: " + error.message; return; }
+      flash.textContent = "✓ Saved to your book";
+      allRowsCache = null;
+      flipIndex = [];
+      setTimeout(()=>{ flash.textContent = ""; }, 3000);
+    });
+  }
+
+  document.getElementById("translateBtn").addEventListener("click", async ()=>{
+    const input = document.getElementById("translateInput").value.trim();
+    const statusEl = document.getElementById("translateStatus");
+    const resultEl = document.getElementById("translateResult");
+    if(!input){ statusEl.textContent = "Type a sentence first."; return; }
+    statusEl.textContent = "Translating...";
+    resultEl.innerHTML = "";
+    try {
+      const data = await translateSentence(input);
+      statusEl.textContent = "";
+      renderTranslateResult(data, input);
+    } catch(e){
+      statusEl.textContent = "Error: " + e.message;
+    }
+  });
 
   // Bulk import
   document.getElementById("importBtn").addEventListener("click", async ()=>{
