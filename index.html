@@ -541,6 +541,9 @@
   </section>
 
   <section class="panel" id="panel-bookmarks">
+    <div class="search-box" style="margin-bottom:12px;">
+      <input id="bookmarkSearchInput" type="text" placeholder="Search your bookmarks..." autocomplete="off">
+    </div>
     <div class="index-toolbar">
       <button class="refresh-btn" id="copyAllBtn">⧉ Copy all</button>
       <span class="copy-flash" id="copyAllFlash"></span>
@@ -907,9 +910,10 @@
     closeNoteModal();
   });
 
+  let bookmarksCache = [];
+
   async function renderBookmarksTab(force){
     const hintEl = document.getElementById("bookmarksHint");
-    const listEl = document.getElementById("bookmarksList");
     hintEl.textContent = "Loading bookmarks...";
     const { data, error } = await sb
       .from("bookmarks")
@@ -917,14 +921,39 @@
       .order("sort_order", { ascending: true, nullsFirst: false });
 
     if(error){ hintEl.textContent = "Error: " + error.message; return; }
-    if(!data.length){
+    bookmarksCache = data.filter(bm => bm.hindi_book);
+    applyBookmarkFilter();
+  }
+
+  function applyBookmarkFilter(){
+    const hintEl = document.getElementById("bookmarksHint");
+    const listEl = document.getElementById("bookmarksList");
+
+    if(!bookmarksCache.length){
       hintEl.textContent = "No bookmarks yet — tap ☆ Bookmark on any search result or book line.";
       listEl.innerHTML = "";
       return;
     }
-    hintEl.textContent = data.length + " bookmarked line" + (data.length===1?"":"s");
 
-    const filtered = data.filter(bm => bm.hindi_book);
+    const term = (document.getElementById("bookmarkSearchInput").value || "").trim().toLowerCase();
+    let filtered = bookmarksCache;
+    if(term){
+      filtered = bookmarksCache.filter(bm=>{
+        const r = bm.hindi_book;
+        const hay = [r.tamil, r.hindi, r.hindi_roman, r.tamil_roman, bm.note]
+          .filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(term);
+      });
+    }
+
+    if(!filtered.length){
+      hintEl.textContent = `No bookmarks match "${term}"`;
+      listEl.innerHTML = "";
+      return;
+    }
+    hintEl.textContent = filtered.length + " bookmarked line" + (filtered.length===1?"":"s")
+      + (term ? ` (of ${bookmarksCache.length} total)` : "");
+
     listEl.innerHTML = filtered.map((bm, i) => {
       const r = bm.hindi_book;
       const isFirst = i === 0;
@@ -1018,6 +1047,8 @@
       });
     });
   }
+
+  document.getElementById("bookmarkSearchInput").addEventListener("input", applyBookmarkFilter);
 
   // Swaps sort_order with the adjacent card so the list order persists.
   async function moveBookmark(card, direction){
