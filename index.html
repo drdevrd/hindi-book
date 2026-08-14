@@ -1213,6 +1213,13 @@
   // query must independently clear its own match threshold somewhere among the
   // row's tokens — e.g. "mere paas" only matches rows where BOTH "mere" and
   // "paas" (or a close variant of each) are found, not the phrase as one string.
+  // Tamil colloquial glide: people often write a leading "y" before a word's
+  // actual initial vowel sound (yennidam ~ ennidam, yaedukkadhae ~ edukkaathe).
+  // Strip it to also try the underlying form.
+  function stripLeadingGlideY(w){
+    return /^y/i.test(w) ? w.replace(/^y+/i, "") : null;
+  }
+
   function scoreMatch(term, row){
     const queryWords = term.split(/\s+/).filter(Boolean);
     if(!queryWords.length) return 0;
@@ -1220,10 +1227,15 @@
     if(!tokens.length) return 0;
     let total = 0;
     for(const qw of queryWords){
+      const variants = [qw];
+      const stripped = stripLeadingGlideY(qw);
+      if(stripped) variants.push(stripped);
       let best = 0;
-      for(const tok of tokens){
-        const s = scoreToken(qw, tok);
-        if(s > best) best = s;
+      for(const variant of variants){
+        for(const tok of tokens){
+          const s = scoreToken(variant, tok);
+          if(s > best) best = s;
+        }
       }
       if(best < matchThreshold(qw.length)) return 0; // this word found nothing — whole query fails
       total += best;
