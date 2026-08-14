@@ -1140,33 +1140,52 @@
     }
     return dp[n];
   }
-  function scoreMatch(term, field){
-    if(!field) return 0;
-    field = field.toLowerCase();
-    // Compare the query against each word/segment individually (split on spaces, "/",
-    // punctuation) rather than the whole field string — otherwise a near-miss on one
-    // word inside a long sentence or a combined "a/b/c" field gets swamped by the
-    // length of everything else in the string.
-    const tokens = field.split(/[^a-z0-9]+/i).filter(Boolean);
-    if(!tokens.length) return 0;
-    let best = 0;
-    for(const tok of tokens){
-      let s;
-      if(tok.includes(term)) s = 1 + (term.length / tok.length) * 0.001;
-      else if(term.length <= 3) s = 0;
-      else {
-        const dist = levenshtein(term, tok);
-        const maxLen = Math.max(term.length, tok.length);
-        s = maxLen ? 1 - dist / maxLen : 0;
-      }
-      if(s > best) best = s;
-    }
-    return best;
+  function scoreToken(term, tok){
+    if(tok.includes(term)) return 1 + (term.length / tok.length) * 0.001;
+    if(term.length <= 3) return 0;
+    const dist = levenshtein(term, tok);
+    const maxLen = Math.max(term.length, tok.length);
+    return maxLen ? 1 - dist / maxLen : 0;
   }
 
   function matchThreshold(termLength){
     if(termLength <= 5) return 0.75;  // short terms: coincidental closeness is common, demand a tight match
     return 0.6;                        // longer terms: more signal, safe to be more lenient
+  }
+
+  // All searchable words across every field of a row, pooled together —
+  // lets a multi-word query match words that live in different fields
+  // (e.g. one word found via tamil_roman, another via hindi_roman).
+  function allTokensOf(row){
+    const fields = [row.tamil, row.hindi, row.hindi_roman, row.tamil_roman, row._hindiRoman2, row._tamilRoman2];
+    const tokens = [];
+    for(const f of fields){
+      if(!f) continue;
+      tokens.push(...String(f).toLowerCase().split(/[^a-z0-9]+/i).filter(Boolean));
+    }
+    return tokens;
+  }
+
+  // Scores a whole row against a (possibly multi-word) query. Each word in the
+  // query must independently clear its own match threshold somewhere among the
+  // row's tokens — e.g. "mere paas" only matches rows where BOTH "mere" and
+  // "paas" (or a close variant of each) are found, not the phrase as one string.
+  function scoreMatch(term, row){
+    const queryWords = term.split(/\s+/).filter(Boolean);
+    if(!queryWords.length) return 0;
+    const tokens = allTokensOf(row);
+    if(!tokens.length) return 0;
+    let total = 0;
+    for(const qw of queryWords){
+      let best = 0;
+      for(const tok of tokens){
+        const s = scoreToken(qw, tok);
+        if(s > best) best = s;
+      }
+      if(best < matchThreshold(qw.length)) return 0; // this word found nothing — whole query fails
+      total += best;
+    }
+    return total / queryWords.length;
   }
 
   // ---- Full-table cache (fetched once, in pages of 1000, refreshed after imports) ----
@@ -1222,10 +1241,8 @@
     const term = rawTerm.toLowerCase();
     const scored = [];
     for(const row of rows){
-      const fields = [row.tamil, row.hindi, row.hindi_roman, row.tamil_roman, row._hindiRoman2, row._tamilRoman2];
-      let best = 0;
-      for(const f of fields){ const s = scoreMatch(term, f || ""); if(s > best) best = s; }
-      if(best >= matchThreshold(term.length)) scored.push({ row, score: best });
+      const s = scoreMatch(term, row);
+      if(s > 0) scored.push({ row, score: s });
     }
     scored.sort((a,b)=> b.score - a.score);
     const data = scored.slice(0, 100).map(s=>s.row);
