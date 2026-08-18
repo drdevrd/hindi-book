@@ -1129,8 +1129,8 @@
   // ---- Best-effort Tamil-script -> Latin transliteration ----
   // Used so Hindi-transliteration searches (e.g. "usko") still match rows where
   // the book itself gave no English column — we derive one from the Tamil-script text.
-  const TA_VOWELS = { 'அ':'a','ஆ':'aa','இ':'i','ஈ':'ii','உ':'u','ஊ':'oo','எ':'e','ஏ':'ee','ஐ':'ai','ஒ':'o','ஓ':'o','ஔ':'au' };
-  const TA_VOWEL_SIGNS = { 'ா':'aa','ி':'i','ீ':'ii','ு':'u','ூ':'oo','ெ':'e','ே':'e','ை':'ai','ொ':'o','ோ':'o','ௌ':'au' };
+  const TA_VOWELS = { 'அ':'a','ஆ':'aa','இ':'i','ஈ':'ee','உ':'u','ஊ':'oo','எ':'e','ஏ':'ee','ஐ':'ai','ஒ':'o','ஓ':'o','ஔ':'au' };
+  const TA_VOWEL_SIGNS = { 'ா':'aa','ி':'i','ீ':'ee','ு':'u','ூ':'oo','ெ':'e','ே':'e','ை':'ai','ொ':'o','ோ':'o','ௌ':'au' };
   const TA_CONS = { 'க':'k','ங':'ng','ச':'ch','ஞ':'nj','ட':'t','ண':'n','த':'th','ந':'n','ப':'p','ம':'m','ய':'y','ர':'r','ல':'l','வ':'v','ழ':'zh','ள':'l','ற':'r','ன':'n','ஜ':'j','ஷ':'sh','ஸ':'s','ஹ':'h' };
   const PULLI = '\u0BCD';
   function tamilToRoman(str){
@@ -1221,6 +1221,13 @@
     return /^y/i.test(w) ? w.replace(/^y+/i, "") : null;
   }
 
+  // Another common habit: writing a plain short "e" sound as "ae" (lejiyae for
+  // leejiye/lijiye, yaedukkadhae for edukkaathe). Collapse "ae" -> "e" as a
+  // second variant to try.
+  function collapseAeToE(w){
+    return /ae/i.test(w) ? w.replace(/ae/gi, "e") : null;
+  }
+
   function scoreMatch(term, row){
     const queryWords = term.split(/\s+/).filter(Boolean);
     if(!queryWords.length) return 0;
@@ -1231,6 +1238,12 @@
       const variants = [qw];
       const stripped = stripLeadingGlideY(qw);
       if(stripped) variants.push(stripped);
+      const collapsed = collapseAeToE(qw);
+      if(collapsed) variants.push(collapsed);
+      if(stripped){
+        const strippedAndCollapsed = collapseAeToE(stripped);
+        if(strippedAndCollapsed) variants.push(strippedAndCollapsed);
+      }
       let best = 0;
       for(const variant of variants){
         for(const tok of tokens){
