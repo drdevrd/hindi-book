@@ -1311,9 +1311,16 @@
     const scored = [];
     for(const row of rows){
       const s = scoreMatch(term, row);
-      if(s > 0) scored.push({ row, score: s });
+      if(s > 0){
+        // Tiebreaker: prefer rows whose Tamil+Hindi text is short (a standalone
+        // vocab word) over long sentences that merely tie on fuzzy score —
+        // otherwise a single word like "எப்படி" gets buried under dozens of
+        // "இப்படி/அப்படி..." sentences scoring the same.
+        const textLen = (row.tamil || "").length + (row.hindi || "").length;
+        scored.push({ row, score: s, textLen });
+      }
     }
-    scored.sort((a,b)=> b.score - a.score);
+    scored.sort((a,b)=> b.score - a.score || a.textLen - b.textLen);
     const data = scored.slice(0, 100).map(s=>s.row);
 
     countEl.textContent = data.length + " match" + (data.length===1?"":"es");
