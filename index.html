@@ -772,6 +772,7 @@
           <div class="hindi-col">
             <div class="tamil">${escapeHtml(r.hindi)}</div>
             <div class="book-roman">${escapeHtml(r.hindi_roman || tamilToRoman(r.hindi))}</div>
+            ${r.english ? `<div class="book-roman" style="font-style:normal;">(${escapeHtml(r.english)})</div>` : ""}
           </div>
           <button class="bm-btn bm-btn-mini${bookmarkedIds.has(r.id)?" on":""}" data-id="${r.id}" title="Bookmark">${bookmarkedIds.has(r.id)?"★":"☆"}</button>
         </div>
@@ -983,6 +984,7 @@
           <div class="tamil-line tamil">${escapeHtml(r.tamil)}</div>
           <div class="hindi-line tamil">${escapeHtml(r.hindi)}</div>
           ${romanLine(r)}
+          ${englishLine(r)}
           <button class="note-toggle-btn">📝 ${escapeHtml(notePreview)}</button>
           <div class="bookmark-actions">
             <button class="copy-btn">⧉ Copy</button>
@@ -1164,6 +1166,11 @@
     return `<div class="roman">${escapeHtml(hr)}${tr ? " · " + escapeHtml(tr) : ""}</div>`;
   }
 
+  function englishLine(row){
+    if(!row.english) return "";
+    return `<div class="roman" style="font-style:normal;">(${escapeHtml(row.english)})</div>`;
+  }
+
   // ---- Fuzzy scoring (handles typos, extra/missing letters) ----
   function levenshtein(a, b){
     const m = a.length, n = b.length;
@@ -1203,7 +1210,7 @@
   // lets a multi-word query match words that live in different fields
   // (e.g. one word found via tamil_roman, another via hindi_roman).
   function allTokensOf(row){
-    const fields = [row.tamil, row.hindi, row.hindi_roman, row.tamil_roman, row._hindiRoman2, row._tamilRoman2];
+    const fields = [row.tamil, row.hindi, row.hindi_roman, row.tamil_roman, row._hindiRoman2, row._tamilRoman2, row.english];
     const tokens = [];
     for(const f of fields){
       if(!f) continue;
@@ -1337,6 +1344,7 @@
         <div class="tamil-line tamil">${escapeHtml(row.tamil)}</div>
         <div class="hindi-line tamil">${escapeHtml(row.hindi)}</div>
         ${romanLine(row)}
+        ${englishLine(row)}
         <br><button class="goto-btn" data-page="${row.page_no ?? ""}" data-section="${escapeHtml(row.section||"")}" data-id="${row.id}">→ Go to page</button><button class="bm-btn${bookmarkedIds.has(row.id)?" on":""}" data-id="${row.id}">${bookmarkedIds.has(row.id)?"★ Bookmarked":"☆ Bookmark"}</button>
       </div>
     `).join("");
