@@ -1191,7 +1191,18 @@
 
   function englishLine(row){
     if(!row.english) return "";
-    return `<div class="roman" style="font-style:normal;">(${escapeHtml(row.english)})</div>`;
+    // Split into readable chunks: prefer breaking before ALL-CAPS labels
+    // (IMPORTANT:, PAIRING:, etc.), fall back to sentence boundaries.
+    let parts = row.english.split(/\s+(?=[A-Z][A-Z ()\/,'-]{2,}:)/);
+    if(parts.length <= 1){
+      parts = row.english.split(/(?<=[.?!])\s+(?=[A-Z(])/);
+    }
+    parts = parts.map(p => p.trim()).filter(Boolean);
+    if(parts.length <= 1){
+      return `<div class="roman" style="font-style:normal;">(${escapeHtml(row.english)})</div>`;
+    }
+    const items = parts.map(p => `<li style="margin-bottom:5px;">${escapeHtml(p)}</li>`).join("");
+    return `<ul style="margin:6px 0 0 18px;padding:0;font-style:normal;color:var(--muted);font-size:0.85rem;list-style:disc;">${items}</ul>`;
   }
 
   // ---- Fuzzy scoring (handles typos, extra/missing letters) ----
