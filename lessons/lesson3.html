@@ -113,10 +113,25 @@
   <label><input type="checkbox" id="repeatToggle" checked> Repeat each word 2x</label>
   <label><input type="checkbox" id="aidsToggle" checked> Show English + Hindi reading</label>
   <label><input type="checkbox" id="cloudVoiceToggle"> Use cloud Hindi voice (better quality)</label>
+  <label>Cloud voice
+    <select id="cloudVoiceSelect">
+      <option value="hi-IN-Wavenet-D">Wavenet D (current default)</option>
+      <option value="hi-IN-Wavenet-A">Wavenet A</option>
+      <option value="hi-IN-Wavenet-B">Wavenet B</option>
+      <option value="hi-IN-Wavenet-C">Wavenet C</option>
+      <option value="hi-IN-Neural2-A">Neural2 A — more natural</option>
+      <option value="hi-IN-Neural2-B">Neural2 B — more natural</option>
+      <option value="hi-IN-Neural2-D">Neural2 D — more natural</option>
+      <option value="custom">Custom (type below)…</option>
+    </select>
+  </label>
+  <label id="customVoiceWrap" style="display:none;">Custom voice name
+    <input type="text" id="customVoiceInput" placeholder="e.g. hi-IN-Chirp3-HD-Aoede" style="width:170px;">
+  </label>
   <div class="voice-warning" id="voiceWarning" style="display:none;"></div>
   <div class="voice-warning" id="wakeStatus" style="color:#4a7c2f;"></div>
 </div>
-<div class="sub" style="margin-top:-8px;">Eyes-free friendly — just listen. Tap ▶ on any word to hear only that one. Keep the phone screen unlocked while Play All runs (see note below).</div>
+<div class="sub" style="margin-top:-8px;">Eyes-free friendly — just listen. Tap ▶ on any word to hear only that one. Keep the phone screen unlocked while Play All runs (see note below). Preview more Hindi voices at <a href="https://cloud.google.com/text-to-speech#demo" target="_blank">cloud.google.com/text-to-speech</a> and paste any voice name you like into "Custom".</div>
 
 <div id="lines"></div>
 
@@ -323,6 +338,18 @@ document.getElementById('repeatGap').addEventListener('input', (e) => {
 const SUPABASE_URL = 'https://ihbbihdjyphngxgoazxt.supabase.co/functions/v1/tts-proxy';
 const SUPABASE_ANON_KEY = 'sb_publishable_i0L6b4_Xyf94lpzLXlEM6g_832eesuH';
 
+function getCloudVoiceName() {
+  const sel = document.getElementById('cloudVoiceSelect').value;
+  if (sel === 'custom') {
+    return document.getElementById('customVoiceInput').value.trim() || 'hi-IN-Wavenet-D';
+  }
+  return sel;
+}
+
+document.getElementById('cloudVoiceSelect').addEventListener('change', (e) => {
+  document.getElementById('customVoiceWrap').style.display = e.target.value === 'custom' ? 'inline-flex' : 'none';
+});
+
 function speakCloud(text, rate) {
   return new Promise(async (resolve) => {
     if (!text) { resolve(); return; }
@@ -336,7 +363,7 @@ function speakCloud(text, rate) {
         body: JSON.stringify({
           text: text,
           languageCode: 'hi-IN',
-          voiceName: 'hi-IN-Wavenet-D',
+          voiceName: getCloudVoiceName(),
           speakingRate: rate
         })
       });
