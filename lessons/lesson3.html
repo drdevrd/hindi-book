@@ -115,18 +115,17 @@
   <label><input type="checkbox" id="cloudVoiceToggle"> Use cloud Hindi voice (better quality)</label>
   <label>Cloud voice
     <select id="cloudVoiceSelect">
-      <option value="hi-IN-Wavenet-D">Wavenet D (current default)</option>
-      <option value="hi-IN-Wavenet-A">Wavenet A</option>
-      <option value="hi-IN-Wavenet-B">Wavenet B</option>
-      <option value="hi-IN-Wavenet-C">Wavenet C</option>
-      <option value="hi-IN-Neural2-A">Neural2 A — more natural</option>
-      <option value="hi-IN-Neural2-B">Neural2 B — more natural</option>
-      <option value="hi-IN-Neural2-D">Neural2 D — more natural</option>
+      <option value="nova">Nova — warm, natural</option>
+      <option value="shimmer">Shimmer — warm, natural</option>
+      <option value="alloy">Alloy — balanced default</option>
+      <option value="echo">Echo — neutral</option>
+      <option value="fable">Fable — expressive</option>
+      <option value="onyx">Onyx — deeper male</option>
       <option value="custom">Custom (type below)…</option>
     </select>
   </label>
   <label id="customVoiceWrap" style="display:none;">Custom voice name
-    <input type="text" id="customVoiceInput" placeholder="e.g. hi-IN-Chirp3-HD-Aoede" style="width:170px;">
+    <input type="text" id="customVoiceInput" placeholder="e.g. coral" style="width:170px;">
   </label>
   <div class="voice-warning" id="voiceWarning" style="display:none;"></div>
   <div class="voice-warning" id="wakeStatus" style="color:#4a7c2f;"></div>
@@ -364,7 +363,6 @@ function speakCloud(text, rate) {
         },
         body: JSON.stringify({
           text: text,
-          languageCode: 'hi-IN',
           voiceName: getCloudVoiceName(),
           speakingRate: rate
         })
