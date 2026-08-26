@@ -401,7 +401,11 @@ function speak(text, rate, langKind) {
     }
     if (v) utter.voice = v;
     utter.rate = rate;
-    utter.onend = resolve;
+    // Small delay before resolving: some browsers fire 'onend' a beat before
+    // the last sound has actually finished playing through the speaker —
+    // resolving immediately can lead to the next action (a cancel/pause)
+    // clipping the tail end of the word.
+    utter.onend = () => setTimeout(resolve, 150);
     utter.onerror = resolve;
     speechSynthesis.speak(utter);
   });
@@ -416,9 +420,12 @@ function speakEither(text, rate, langKind) {
 }
 
 function pauseFor(ms) {
-  // Defensive cancel() first: flushes any stuck/backlogged utterance in the
-  // TTS queue so the wait actually elapses instead of getting skipped.
-  speechSynthesis.cancel();
+  // Only flush the queue if something is genuinely still stuck/pending —
+  // cancelling unconditionally right after a normal finish can clip the
+  // tail end of the word that just played (e.g. "रात" losing its final त).
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    speechSynthesis.cancel();
+  }
   return new Promise(r => setTimeout(r, ms));
 }
 
