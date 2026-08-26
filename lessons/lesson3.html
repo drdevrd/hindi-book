@@ -130,6 +130,7 @@
   </label>
   <div class="voice-warning" id="voiceWarning" style="display:none;"></div>
   <div class="voice-warning" id="wakeStatus" style="color:#4a7c2f;"></div>
+  <div class="voice-warning" id="cloudErrorBanner" style="display:none; color:#b5451b; font-weight:600; width:100%;"></div>
 </div>
 <div class="sub" style="margin-top:-8px;">Eyes-free friendly — just listen. Tap ▶ on any word to hear only that one. Keep the phone screen unlocked while Play All runs (see note below). Preview more Hindi voices at <a href="https://cloud.google.com/text-to-speech#demo" target="_blank">cloud.google.com/text-to-speech</a> and paste any voice name you like into "Custom".</div>
 
@@ -358,7 +359,8 @@ function speakCloud(text, rate) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'apikey': SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
           text: text,
@@ -369,17 +371,24 @@ function speakCloud(text, rate) {
       });
       const data = await res.json();
       if (!res.ok || !data.audioContent) {
-        console.error('Cloud TTS error, falling back to browser voice:', data.error || data);
+        const msg = 'Cloud TTS error (HTTP ' + res.status + '): ' + JSON.stringify(data.error || data) + ' — using browser voice instead.';
+        console.error(msg);
+        document.getElementById('cloudErrorBanner').textContent = msg;
+        document.getElementById('cloudErrorBanner').style.display = 'block';
         await speak(text, rate, 'hi');
         resolve();
         return;
       }
+      document.getElementById('cloudErrorBanner').style.display = 'none';
       const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
       audio.onended = resolve;
       audio.onerror = resolve;
       audio.play();
     } catch (err) {
-      console.error('Cloud TTS request failed, falling back to browser voice:', err);
+      const msg = 'Cloud TTS request failed: ' + err + ' — using browser voice instead.';
+      console.error(msg);
+      document.getElementById('cloudErrorBanner').textContent = msg;
+      document.getElementById('cloudErrorBanner').style.display = 'block';
       await speak(text, rate, 'hi');
       resolve();
     }
