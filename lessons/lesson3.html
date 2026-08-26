@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hindi Audio Teacher - Lesson 3</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans Tamil', 'Noto Sans', Arial, sans-serif;
+    background: #fdf6e3;
+    margin: 0;
+    padding: 16px;
+    color: #2b2b2b;
+  }
+  h1 { font-size: 20px; text-align: center; margin: 4px 0 2px; }
+  h2.section { font-size: 15px; margin: 22px 0 8px; color: #b5451b; border-bottom: 2px solid #e6dcc0; padding-bottom: 4px; }
+  .sub { text-align: center; color: #777; font-size: 13px; margin-bottom: 16px; }
+
+  .controls {
+    background: #fff;
+    border: 1px solid #e0d5b8;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    position: sticky;
+    top: 8px;
+    z-index: 10;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  .controls button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #b5451b;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .controls button.secondary { background: #6b7280; }
+  .controls button:disabled { background: #ccc; cursor: not-allowed; }
+  .controls label { font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  select, input[type=range] { font-size: 13px; }
+  .voice-warning { font-size: 12px; color: #b5451b; width: 100%; }
+
+  .line {
+    background: #fff;
+    border: 1px solid #e6dcc0;
+    border-left: 5px solid #cbb98a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    transition: background 0.2s, border-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .line.active { background: #fff4e0; border-left-color: #b5451b; }
+  .num { font-size: 12px; color: #999; font-weight: 700; min-width: 22px; }
+  .words { flex: 1; min-width: 200px; }
+  .tamil { font-size: 16px; margin: 1px 0; }
+  .hindi { font-size: 16px; margin: 1px 0; color: #1a4d8f; }
+  .en { font-size: 12px; color: #888; font-style: italic; margin: 0 0 2px; }
+  .roman { font-size: 12px; color: #6d8fb5; margin: 0 0 1px; }
+  .hide-aids .en, .hide-aids .roman { display: none; }
+  .line-btn {
+    padding: 6px 12px;
+    border: 1px solid #b5451b;
+    background: #fff;
+    color: #b5451b;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  footer { text-align: center; font-size: 12px; color: #999; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h1>Lesson 3 — Hindi Vocabulary</h1>
+<div class="sub">Tamil word → pause (think in Hindi) → Hindi word</div>
+
+<div class="controls">
+  <button id="playAllBtn">▶ Play All</button>
+  <button id="stopBtn" class="secondary">■ Stop</button>
+  <label>Speed
+    <input type="range" id="rate" min="0.3" max="1.3" step="0.1" value="0.5">
+    <span id="rateVal">0.5x</span>
+  </label>
+  <label>Think pause
+    <input type="range" id="thinkPause" min="1" max="8" step="1" value="4">
+    <span id="thinkPauseVal">4s</span>
+  </label>
+  <label>Next-word pause
+    <input type="range" id="nextPause" min="0" max="10" step="1" value="3">
+    <span id="nextPauseVal">3s</span>
+  </label>
+  <label>Voice
+    <select id="voiceSelect"></select>
+  </label>
+  <label>Repeat gap
+    <input type="range" id="repeatGap" min="0.3" max="3" step="0.1" value="1">
+    <span id="repeatGapVal">1s</span>
+  </label>
+  <label><input type="checkbox" id="repeatToggle" checked> Repeat each word 2x</label>
+  <label><input type="checkbox" id="aidsToggle" checked> Show English + Hindi reading</label>
+  <label><input type="checkbox" id="cloudVoiceToggle"> Use cloud Hindi voice (better quality)</label>
+  <div class="voice-warning" id="voiceWarning" style="display:none;"></div>
+  <div class="voice-warning" id="wakeStatus" style="color:#4a7c2f;"></div>
+</div>
+<div class="sub" style="margin-top:-8px;">Eyes-free friendly — just listen. Tap ▶ on any word to hear only that one. Keep the phone screen unlocked while Play All runs (see note below).</div>
+
+<div id="lines"></div>
+
+<footer>"Play All" reads every word Tamil first, pause, then Hindi, in order down the page.</footer>
+
+<script>
+const sections = [
+  {
+    title: "Time words",
+    items: [
+      { n: "1", ta: "காலை", en: "Morning", ha: "सुबह / सवेरा", hr: "subah / savera" },
+      { n: "2", ta: "மதியம்", en: "Afternoon", ha: "दोपहर / दुपहर", hr: "dopahar / dupahar" },
+      { n: "3", ta: "மாலை", en: "Evening", ha: "शाम", hr: "shaam" },
+      { n: "4", ta: "இரவு", en: "Night", ha: "रात", hr: "raat" },
+      { n: "5", ta: "இன்று காலை", en: "This morning", ha: "आज सुबह", hr: "aaj subah" },
+      { n: "6", ta: "விடியற்காலை", en: "Early morning / Dawn", ha: "सुबह सुबह / प्रातःकाल", hr: "subah subah / prataha-kaal" },
+      { n: "7", ta: "நடுராத்திரி", en: "Midnight", ha: "आधी रात", hr: "aadhi raat" },
+      { n: "8", ta: "இரவு வெகுநேரமாகி", en: "Late at night", ha: "देर रात", hr: "der raat" },
+      { n: "9", ta: "அப்போது", en: "Then / At that time", ha: "तब / उस समय", hr: "tab / us samay" },
+      { n: "10", ta: "அடுத்த", en: "Next", ha: "अगली / अगले / अगला", hr: "agli / agle / agla" },
+      { n: "11", ta: "போன", en: "Last / Past", ha: "पिछले", hr: "pichhle" },
+      { n: "12", ta: "கடைசி", en: "Last (final)", ha: "आख़िरी", hr: "aakhiri" },
+      { n: "13", ta: "நாள்", en: "Day", ha: "दिन", hr: "din" },
+      { n: "14", ta: "வாரம்", en: "Week", ha: "हफ्ता / सप्ताह", hr: "hafta / saptaah" },
+      { n: "15", ta: "மாதம்", en: "Month", ha: "महीना", hr: "mahina" },
+      { n: "16", ta: "வருடம்", en: "Year", ha: "साल / वर्ष", hr: "saal / varsh" },
+      { n: "17", ta: "தடவை", en: "Time (occasion)", ha: "बार", hr: "baar" },
+      { n: "18", ta: "நேரம்", en: "Time / Hour", ha: "समय / घंटा", hr: "samay / ghanta" },
+      { n: "19", ta: "வருகின்ற", en: "Coming / Upcoming", ha: "इस / आने वाला", hr: "is / aane waala" },
+      { n: "20", ta: "திடீரென்று", en: "Suddenly", ha: "अचानक", hr: "achaanak" }
+    ]
+  },
+  {
+    title: "Possessives",
+    items: [
+      { n: "", ta: "என்னுடையது", en: "Mine", ha: "मेरा", hr: "mera" },
+      { n: "", ta: "உன்னுடையது", en: "Yours", ha: "तुम्हारा / तेरा", hr: "tumhaara / tera" },
+      { n: "", ta: "அவனுடையது / அவளுடையது", en: "His / Hers", ha: "उसका", hr: "uska" },
+      { n: "", ta: "அவருடையது / அவர்களுடையது", en: "His (respectful) / Theirs", ha: "उनका", hr: "unka" },
+      { n: "", ta: "நம்முடையது / எங்களுடையது", en: "Ours", ha: "हमारा", hr: "hamaara" },
+      { n: "", ta: "ராஜாவுடையது", en: "King's", ha: "राजा का", hr: "raaja ka" }
+    ]
+  },
+  {
+    title: "உறவும் நட்பும் — Relations & Friendship",
+    items: [
+      { n: "1", ta: "சித்தப்பா", en: "Uncle (father's younger brother)", ha: "चाचा / काका / मौसा", hr: "chacha / kaka / mausa" },
+      { n: "2", ta: "சித்தி", en: "Aunt (uncle's wife)", ha: "चाची / काकी / मौसी", hr: "chachi / kaki / mausi" },
+      { n: "3", ta: "பெரியம்மா", en: "Elder aunt (mother's elder sister)", ha: "बड़ी माँ / ताई", hr: "badi maa / taai" },
+      { n: "4", ta: "பெரியப்பா", en: "Elder uncle (father's elder brother)", ha: "बड़े पिताजी / ताऊजी", hr: "bade pitaji / taauji" },
+      { n: "5", ta: "மாமா", en: "Maternal uncle", ha: "मामा", hr: "mama" },
+      { n: "6", ta: "மாமி", en: "Maternal aunt", ha: "मामी", hr: "mami" },
+      { n: "7", ta: "அத்தை", en: "Paternal aunt", ha: "बुआ", hr: "buaa" },
+      { n: "8", ta: "குழந்தை (பெண்)", en: "Doll / girl figure", ha: "गुड़िया", hr: "gudiya" },
+      { n: "9", ta: "பெண் குழந்தை", en: "Girl child", ha: "बच्ची", hr: "bachchi" },
+      { n: "10", ta: "ஆண் குழந்தை", en: "Boy child", ha: "बच्चा", hr: "bachcha" },
+      { n: "11", ta: "பொண்ணு", en: "Daughter / Girl", ha: "बेटी", hr: "beti" },
+      { n: "12", ta: "மகள்கள்", en: "Daughters", ha: "बेटियाँ", hr: "betiyaan" },
+      { n: "13", ta: "பையன்", en: "Son", ha: "बेटा", hr: "beta" },
+      { n: "14", ta: "பையன்கள்", en: "Sons", ha: "बेटे", hr: "bete" },
+      { n: "15", ta: "தாத்தா", en: "Grandfather", ha: "दादाजी / नानाजी", hr: "daadaji / naanaji" },
+      { n: "16", ta: "பாட்டி", en: "Grandmother", ha: "दादी / नानी", hr: "daadi / naani" },
+      { n: "17", ta: "மருமகன்", en: "Son-in-law", ha: "दामाद", hr: "daamaad" },
+      { n: "18", ta: "மருமகள்", en: "Daughter-in-law", ha: "बहू", hr: "bahu" },
+      { n: "19", ta: "மாமியார்", en: "Mother-in-law", ha: "सास", hr: "saas" },
+      { n: "20", ta: "மாமனார்", en: "Father-in-law", ha: "ससुर", hr: "sasur" },
+      { n: "21", ta: "நாத்தனார்", en: "Sister-in-law (husband's sister)", ha: "ननद", hr: "nanad" },
+      { n: "22", ta: "நாத்தனாரின் கணவர்", en: "Husband of husband's sister", ha: "नन्दोई", hr: "nandoi" },
+      { n: "23", ta: "அண்ணி", en: "Sister-in-law (elder brother's wife)", ha: "भाभी", hr: "bhaabhi" },
+      { n: "24", ta: "மச்சான்", en: "Brother-in-law", ha: "साला / जीजाजी", hr: "saala / jeejaji" },
+      { n: "25", ta: "மச்சினிச்சி", en: "Sister-in-law", ha: "साली", hr: "saali" },
+      { n: "26", ta: "கணவன்", en: "Husband", ha: "पति", hr: "pati" },
+      { n: "27", ta: "மனைவி", en: "Wife", ha: "पत्नी", hr: "patni" },
+      { n: "28", ta: "உறவினர்", en: "Relative", ha: "रिश्तेदार", hr: "rishtedaar" },
+      { n: "29", ta: "பக்கத்து வீட்டுக்காரர்", en: "Neighbor", ha: "पड़ोसी", hr: "padosi" },
+      { n: "30", ta: "பேரன்", en: "Grandson", ha: "पोता / नाती", hr: "pota / naati" },
+      { n: "31", ta: "பேத்தி", en: "Granddaughter", ha: "पोती / नातिन", hr: "poti / naatin" },
+      { n: "32", ta: "கொழுந்தனார்", en: "Husband's younger brother", ha: "देवर", hr: "devar" },
+      { n: "33", ta: "தோழி", en: "Female friend", ha: "सहेली", hr: "saheli" },
+      { n: "34", ta: "வேலைக்காரி", en: "Female servant", ha: "नौकरानी", hr: "naukraani" },
+      { n: "35", ta: "வேலைக்காரன்", en: "Male servant", ha: "नौकर", hr: "naukar" },
+      { n: "36", ta: "முதலாளி", en: "Owner / Boss", ha: "मालिक", hr: "maalik" },
+      { n: "37", ta: "வீட்டு ஓனர்", en: "House owner", ha: "घर का मालिक", hr: "ghar ka maalik" },
+      { n: "38", ta: "வாடகைக்கு குடியிருப்பவர்", en: "Tenant", ha: "किरायेदार", hr: "kirayedaar" },
+      { n: "39", ta: "முன்பின் தெரியாதவர்", en: "Stranger", ha: "अंजान आदमी", hr: "anjaan aadmi" },
+      { n: "40", ta: "விதவை", en: "Widow", ha: "विधवा", hr: "vidhwa" },
+      { n: "41", ta: "இரட்டையர்", en: "Twins", ha: "जुड़वा", hr: "judwa" },
+      { n: "42", ta: "தத்து குழந்தை", en: "Adopted child", ha: "दत्तक पुत्र", hr: "dattak putra" },
+      { n: "43", ta: "கொள்ளு பேரன்", en: "Great-grandson", ha: "परपोता", hr: "par-pota" },
+      { n: "44", ta: "கொள்ளு பேத்தி", en: "Great-granddaughter", ha: "परपोती", hr: "par-poti" },
+      { n: "45", ta: "நம்முடன் வேலைசெய்பவர்", en: "Co-worker", ha: "साथ काम करने वाला", hr: "saath kaam karne waala" }
+    ]
+  }
+];
+
+// Flatten into a single ordered play list, but render with section headers
+const data = [];
+const linesDiv = document.getElementById('lines');
+sections.forEach(sec => {
+  const h = document.createElement('h2');
+  h.className = 'section';
+  h.textContent = sec.title;
+  linesDiv.appendChild(h);
+  sec.items.forEach(item => {
+    const idx = data.length;
+    data.push(item);
+    const div = document.createElement('div');
+    div.className = 'line';
+    div.id = 'line-' + idx;
+    div.innerHTML = `
+      <div class="num">${item.n}</div>
+      <div class="words">
+        <div class="tamil">${item.ta}</div>
+        <div class="en">${item.en}</div>
+        <div class="hindi">${item.ha}</div>
+        <div class="roman">${item.hr}</div>
+      </div>
+      <button class="line-btn" data-idx="${idx}">▶ Play</button>
+    `;
+    linesDiv.appendChild(div);
+  });
+});
+
+let voices = [];
+let hindiVoice = null;
+let tamilVoice = null;
+let playing = false;
+let stopRequested = false;
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      document.getElementById('wakeStatus').textContent = 'Screen will stay awake during playback.';
+    } else {
+      document.getElementById('wakeStatus').textContent = 'This browser can\'t keep the screen awake — if it locks mid-play, pauses/timing may be affected. Keep the screen on for reliable playback.';
+    }
+  } catch (err) {
+    document.getElementById('wakeStatus').textContent = 'Couldn\'t keep screen awake (' + err.name + '). Keep the screen on manually for reliable playback.';
+  }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  document.getElementById('wakeStatus').textContent = '';
+}
+document.addEventListener('visibilitychange', async () => {
+  if (playing && document.visibilityState === 'visible') {
+    await requestWakeLock();
+  }
+});
+
+function loadVoices() {
+  voices = speechSynthesis.getVoices();
+  const select = document.getElementById('voiceSelect');
+  select.innerHTML = '';
+  const hindiVoices = voices.filter(v => v.lang.toLowerCase().startsWith('hi'));
+  const tamilVoices = voices.filter(v => v.lang.toLowerCase().startsWith('ta'));
+  const warning = document.getElementById('voiceWarning');
+
+  tamilVoice = tamilVoices[0] || null;
+
+  let warnMsg = '';
+  if (hindiVoices.length === 0) warnMsg += 'No Hindi voice found — Hindi words may not speak correctly. ';
+  if (tamilVoices.length === 0) warnMsg += 'No Tamil voice found — Tamil words will fall back to the Hindi/default voice, which will mispronounce Tamil. Try Chrome on Android for built-in Google voices.';
+  if (warnMsg) { warning.style.display = 'block'; warning.textContent = warnMsg; }
+  else { warning.style.display = 'none'; }
+
+  const listed = hindiVoices.length ? hindiVoices : voices;
+  listed.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = v.name + ' (' + v.lang + ')';
+    select.appendChild(opt);
+  });
+  hindiVoice = listed[0] || null;
+}
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+document.getElementById('voiceSelect').addEventListener('change', (e) => {
+  hindiVoice = voices.find(v => v.name === e.target.value);
+});
+
+document.getElementById('rate').addEventListener('input', (e) => {
+  document.getElementById('rateVal').textContent = e.target.value + 'x';
+});
+document.getElementById('thinkPause').addEventListener('input', (e) => {
+  document.getElementById('thinkPauseVal').textContent = e.target.value + 's';
+});
+document.getElementById('nextPause').addEventListener('input', (e) => {
+  document.getElementById('nextPauseVal').textContent = e.target.value + 's';
+});
+document.getElementById('aidsToggle').addEventListener('change', (e) => {
+  document.body.classList.toggle('hide-aids', !e.target.checked);
+});
+document.getElementById('repeatGap').addEventListener('input', (e) => {
+  document.getElementById('repeatGapVal').textContent = e.target.value + 's';
+});
+
+// ---- Cloud TTS (Google Cloud, via Supabase Edge Function proxy) ----
+// Fill in your project's anon/public key from:
+// Supabase Dashboard -> Project Settings -> API -> Project API keys -> anon/public
+const SUPABASE_URL = 'https://ihbbihdjyphngxgoazxt.supabase.co/functions/v1/tts-proxy';
+const SUPABASE_ANON_KEY = 'sb_publishable_i0L6b4_Xyf94lpzLXlEM6g_832eesuH';
+
+function speakCloud(text, rate) {
+  return new Promise(async (resolve) => {
+    if (!text) { resolve(); return; }
+    try {
+      const res = await fetch(SUPABASE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+          text: text,
+          languageCode: 'hi-IN',
+          voiceName: 'hi-IN-Wavenet-D',
+          speakingRate: rate
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.audioContent) {
+        console.error('Cloud TTS error, falling back to browser voice:', data.error || data);
+        await speak(text, rate, 'hi');
+        resolve();
+        return;
+      }
+      const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
+      audio.onended = resolve;
+      audio.onerror = resolve;
+      audio.play();
+    } catch (err) {
+      console.error('Cloud TTS request failed, falling back to browser voice:', err);
+      await speak(text, rate, 'hi');
+      resolve();
+    }
+  });
+}
+
+function speak(text, rate, langKind) {
+  return new Promise((resolve) => {
+    if (!text) { resolve(); return; }
+    const utter = new SpeechSynthesisUtterance(text);
+    let v;
+    if (langKind === 'ta') {
+      v = tamilVoice || hindiVoice;
+      utter.lang = (tamilVoice && tamilVoice.lang) || 'ta-IN';
+    } else {
+      const selectedName = document.getElementById('voiceSelect').value;
+      v = voices.find(v => v.name === selectedName) || hindiVoice;
+      utter.lang = (v && v.lang) || 'hi-IN';
+    }
+    if (v) utter.voice = v;
+    utter.rate = rate;
+    utter.onend = resolve;
+    utter.onerror = resolve;
+    speechSynthesis.speak(utter);
+  });
+}
+
+function speakEither(text, rate, langKind) {
+  const useCloud = document.getElementById('cloudVoiceToggle').checked;
+  if (useCloud && langKind === 'hi') {
+    return speakCloud(text, rate);
+  }
+  return speak(text, rate, langKind);
+}
+
+function pauseFor(ms) {
+  // Defensive cancel() first: flushes any stuck/backlogged utterance in the
+  // TTS queue so the wait actually elapses instead of getting skipped.
+  speechSynthesis.cancel();
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// Split "सुबह / सवेरा" into ["सुबह", "सवेरा"] so each alternative is spoken
+// as its own utterance — the TTS engine naturally stresses/enunciates a short
+// standalone word far better than it does a run-on slash-joined string.
+function splitAlternatives(text) {
+  return text.split('/').map(s => s.trim()).filter(Boolean);
+}
+
+async function speakAlternatives(text, rate, langKind) {
+  const parts = splitAlternatives(text);
+  for (let i = 0; i < parts.length; i++) {
+    if (stopRequested) return;
+    await speakEither(parts[i], rate, langKind);
+    if (i < parts.length - 1) await pauseFor(600);
+  }
+}
+
+async function speakTwice(text, rate, langKind, repeat) {
+  if (!text) return;
+  await speakAlternatives(text, rate, langKind);
+  if (repeat && !stopRequested) {
+    const gapMs = parseFloat(document.getElementById('repeatGap').value) * 1000;
+    await pauseFor(gapMs);
+    await speakAlternatives(text, rate, langKind);
+  }
+}
+
+async function playLine(i) {
+  const rate = parseFloat(document.getElementById('rate').value);
+  const repeat = document.getElementById('repeatToggle').checked;
+  const thinkMs = parseInt(document.getElementById('thinkPause').value) * 1000;
+  document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
+  const el = document.getElementById('line-' + i);
+  el.classList.add('active');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const d = data[i];
+
+  await speakTwice(d.ta, rate, 'ta', repeat);
+  if (stopRequested) return;
+
+  await pauseFor(thinkMs);
+  if (stopRequested) return;
+
+  await speakTwice(d.ha, rate, 'hi', repeat);
+}
+
+document.querySelectorAll('.line-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    stopRequested = false;
+    playLine(parseInt(btn.dataset.idx));
+  });
+});
+
+document.getElementById('playAllBtn').addEventListener('click', async () => {
+  if (playing) return;
+  playing = true;
+  stopRequested = false;
+  await requestWakeLock();
+  const nextPauseMs = () => parseInt(document.getElementById('nextPause').value) * 1000;
+  for (let i = 0; i < data.length; i++) {
+    if (stopRequested) break;
+    await playLine(i);
+    if (stopRequested) break;
+    if (i < data.length - 1) await pauseFor(nextPauseMs());
+  }
+  document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
+  playing = false;
+  releaseWakeLock();
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+  stopRequested = true;
+  playing = false;
+  speechSynthesis.cancel();
+  document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
+  releaseWakeLock();
+});
+</script>
+
+</body>
+</html>
