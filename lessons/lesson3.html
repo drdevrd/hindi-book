@@ -249,7 +249,8 @@ sections.forEach(sec => {
         <div class="hindi">${item.ha}</div>
         <div class="roman">${item.hr}</div>
       </div>
-      <button class="line-btn" data-idx="${idx}">▶ Play</button>
+      <button class="line-btn" data-idx="${idx}" data-mode="one">▶ Play</button>
+      <button class="line-btn" data-idx="${idx}" data-mode="from">⏭ From here</button>
     `;
     linesDiv.appendChild(div);
   });
@@ -350,9 +351,26 @@ document.getElementById('cloudVoiceSelect').addEventListener('change', (e) => {
   document.getElementById('customVoiceWrap').style.display = e.target.value === 'custom' ? 'inline-flex' : 'none';
 });
 
+const cloudAudioCache = {};
+
 function speakCloud(text, rate) {
   return new Promise(async (resolve) => {
     if (!text) { resolve(); return; }
+    const voiceName = getCloudVoiceName();
+    const cacheKey = voiceName + '|' + rate + '|' + text;
+
+    // Reuse a cached clip if we've already generated this exact word before —
+    // OpenAI's voice is generative, so two separate calls for the same word
+    // (e.g. the "repeat 2x" feature) can come out slightly different each
+    // time. Caching guarantees the repeat is byte-identical to the first.
+    if (cloudAudioCache[cacheKey]) {
+      const cached = new Audio(cloudAudioCache[cacheKey]);
+      cached.onended = resolve;
+      cached.onerror = resolve;
+      cached.play();
+      return;
+    }
+
     try {
       const res = await fetch(SUPABASE_URL, {
         method: 'POST',
@@ -363,7 +381,7 @@ function speakCloud(text, rate) {
         },
         body: JSON.stringify({
           text: text,
-          voiceName: getCloudVoiceName(),
+          voiceName: voiceName,
           speakingRate: rate
         })
       });
@@ -378,7 +396,9 @@ function speakCloud(text, rate) {
         return;
       }
       document.getElementById('cloudErrorBanner').style.display = 'none';
-      const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
+      const dataUri = 'data:audio/mp3;base64,' + data.audioContent;
+      cloudAudioCache[cacheKey] = dataUri;
+      const audio = new Audio(dataUri);
       audio.onended = resolve;
       audio.onerror = resolve;
       audio.play();
@@ -481,21 +501,13 @@ async function playLine(i) {
   await speakTwice(d.ha, rate, 'hi', repeat);
 }
 
-document.querySelectorAll('.line-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    speechSynthesis.cancel();
-    stopRequested = false;
-    playLine(parseInt(btn.dataset.idx));
-  });
-});
-
-document.getElementById('playAllBtn').addEventListener('click', async () => {
+async function playFromIndex(startIndex) {
   if (playing) return;
   playing = true;
   stopRequested = false;
   await requestWakeLock();
   const nextPauseMs = () => parseInt(document.getElementById('nextPause').value) * 1000;
-  for (let i = 0; i < data.length; i++) {
+  for (let i = startIndex; i < data.length; i++) {
     if (stopRequested) break;
     await playLine(i);
     if (stopRequested) break;
@@ -504,6 +516,23 @@ document.getElementById('playAllBtn').addEventListener('click', async () => {
   document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
   playing = false;
   releaseWakeLock();
+}
+
+document.querySelectorAll('.line-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    stopRequested = false;
+    const idx = parseInt(btn.dataset.idx);
+    if (btn.dataset.mode === 'from') {
+      playFromIndex(idx);
+    } else {
+      playLine(idx);
+    }
+  });
+});
+
+document.getElementById('playAllBtn').addEventListener('click', () => {
+  playFromIndex(0);
 });
 
 document.getElementById('stopBtn').addEventListener('click', () => {
