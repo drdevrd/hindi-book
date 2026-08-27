@@ -100,18 +100,18 @@
     <span id="rateHindiVal">0.5x</span>
   </label>
   <label>Think pause
-    <input type="range" id="thinkPause" min="1" max="8" step="1" value="4">
+    <input type="range" id="thinkPause" min="1" max="15" step="1" value="4">
     <span id="thinkPauseVal">4s</span>
   </label>
   <label>Next-word pause
-    <input type="range" id="nextPause" min="0" max="10" step="1" value="3">
+    <input type="range" id="nextPause" min="0" max="15" step="1" value="3">
     <span id="nextPauseVal">3s</span>
   </label>
   <label>Voice
     <select id="voiceSelect"></select>
   </label>
   <label>Repeat gap
-    <input type="range" id="repeatGap" min="0.3" max="3" step="0.1" value="1">
+    <input type="range" id="repeatGap" min="0.25" max="15" step="0.25" value="1">
     <span id="repeatGapVal">1s</span>
   </label>
   <label><input type="checkbox" id="repeatToggle" checked> Repeat each word 2x</label>
@@ -134,6 +134,11 @@
   <div class="voice-warning" id="voiceWarning" style="display:none;"></div>
   <div class="voice-warning" id="wakeStatus" style="color:#4a7c2f;"></div>
   <div class="voice-warning" id="cloudErrorBanner" style="display:none; color:#b5451b; font-weight:600; width:100%;"></div>
+  <div style="width:100%; display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <button id="saveDefaultsBtn" style="background:#4a7c2f;">💾 Save as my defaults</button>
+    <button id="resetDefaultsBtn" class="secondary">↺ Reset to original</button>
+    <span id="settingsStatus" style="font-size:12px; color:#4a7c2f;"></span>
+  </div>
 </div>
 <div class="sub" style="margin-top:-8px;">Eyes-free friendly — just listen. Tap ▶ on any word to hear only that one. Keep the phone screen unlocked while Play All runs (see note below). Preview more Hindi voices at <a href="https://cloud.google.com/text-to-speech#demo" target="_blank">cloud.google.com/text-to-speech</a> and paste any voice name you like into "Custom".</div>
 
@@ -379,7 +384,7 @@ function loadVoices() {
   });
   hindiVoice = listed[0] || null;
 }
-speechSynthesis.onvoiceschanged = loadVoices;
+speechSynthesis.onvoiceschanged = () => { loadVoices(); loadSettings(); };
 loadVoices();
 
 document.getElementById('voiceSelect').addEventListener('change', (e) => {
@@ -403,6 +408,92 @@ document.getElementById('aidsToggle').addEventListener('change', (e) => {
 });
 document.getElementById('repeatGap').addEventListener('input', (e) => {
   document.getElementById('repeatGapVal').textContent = e.target.value + 's';
+});
+
+// ---- Settings persistence ----
+// Saves your preferred slider/checkbox positions so you don't have to
+// re-adjust them on every page load. Stored in this browser only.
+const SETTINGS_KEY = 'hindiTeacherSettings_v1';
+
+const SETTING_FIELDS = [
+  { id: 'rateTamil',        type: 'range',    labelId: 'rateTamilVal', suffix: 'x' },
+  { id: 'rateHindi',        type: 'range',    labelId: 'rateHindiVal', suffix: 'x' },
+  { id: 'thinkPause',       type: 'range',    labelId: 'thinkPauseVal', suffix: 's' },
+  { id: 'nextPause',        type: 'range',    labelId: 'nextPauseVal',  suffix: 's' },
+  { id: 'repeatGap',        type: 'range',    labelId: 'repeatGapVal',  suffix: 's' },
+  { id: 'repeatToggle',     type: 'checkbox' },
+  { id: 'aidsToggle',       type: 'checkbox' },
+  { id: 'cloudVoiceToggle', type: 'checkbox' },
+  { id: 'cloudVoiceSelect', type: 'select' },
+  { id: 'customVoiceInput', type: 'text' },
+  { id: 'voiceSelect',      type: 'select' }
+];
+
+function saveSettings() {
+  const settings = {};
+  SETTING_FIELDS.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el) return;
+    settings[f.id] = (f.type === 'checkbox') ? el.checked : el.value;
+  });
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    showSettingsStatus('Saved — these are now your defaults.');
+  } catch (err) {
+    showSettingsStatus('Could not save settings: ' + err, true);
+  }
+}
+
+function applySettings(settings) {
+  SETTING_FIELDS.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el || !(f.id in settings)) return;
+    if (f.type === 'checkbox') {
+      el.checked = settings[f.id];
+    } else {
+      el.value = settings[f.id];
+    }
+    // Refresh the little value label next to each slider
+    if (f.labelId) {
+      const lbl = document.getElementById(f.labelId);
+      if (lbl) lbl.textContent = el.value + (f.suffix || '');
+    }
+  });
+  // Re-apply side effects that normally fire on user interaction
+  document.body.classList.toggle('hide-aids', !document.getElementById('aidsToggle').checked);
+  document.getElementById('customVoiceWrap').style.display =
+    document.getElementById('cloudVoiceSelect').value === 'custom' ? 'inline-flex' : 'none';
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return;
+    applySettings(JSON.parse(raw));
+  } catch (err) {
+    console.error('Could not load saved settings:', err);
+  }
+}
+
+function showSettingsStatus(msg, isError) {
+  const el = document.getElementById('settingsStatus');
+  el.textContent = msg;
+  el.style.color = isError ? '#b5451b' : '#4a7c2f';
+  setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+document.getElementById('saveDefaultsBtn').addEventListener('click', saveSettings);
+
+document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
+  try {
+    localStorage.removeItem(SETTINGS_KEY);
+  } catch (err) { /* ignore */ }
+  applySettings({
+    rateTamil: '0.5', rateHindi: '0.5', thinkPause: '4', nextPause: '3',
+    repeatGap: '1', repeatToggle: true, aidsToggle: true,
+    cloudVoiceToggle: false, cloudVoiceSelect: 'nova', customVoiceInput: ''
+  });
+  showSettingsStatus('Reset to original defaults.');
 });
 
 // ---- Cloud TTS (Google Cloud, via Supabase Edge Function proxy) ----
@@ -437,9 +528,9 @@ function speakCloud(text, rate) {
     // time. Caching guarantees the repeat is byte-identical to the first.
     if (cloudAudioCache[cacheKey]) {
       const cached = new Audio(cloudAudioCache[cacheKey]);
-      cached.onended = resolve;
-      cached.onerror = resolve;
-      cached.play();
+      cached.onended = () => resolve();
+      cached.onerror = () => resolve();
+      cached.play().catch(() => resolve());
       return;
     }
 
@@ -471,9 +562,9 @@ function speakCloud(text, rate) {
       const dataUri = 'data:audio/mp3;base64,' + data.audioContent;
       cloudAudioCache[cacheKey] = dataUri;
       const audio = new Audio(dataUri);
-      audio.onended = resolve;
-      audio.onerror = resolve;
-      audio.play();
+      audio.onended = () => resolve();
+      audio.onerror = () => resolve();
+      audio.play().catch(() => resolve());
     } catch (err) {
       const msg = 'Cloud TTS request failed: ' + err + ' — using browser voice instead.';
       console.error(msg);
@@ -615,6 +706,9 @@ document.getElementById('stopBtn').addEventListener('click', () => {
   document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
   releaseWakeLock();
 });
+
+// Apply any previously saved defaults on page load
+loadSettings();
 </script>
 
 </body>
