@@ -492,7 +492,7 @@ async function playLine(i) {
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   const d = data[i];
 
-  await speakTwice(d.ta, rate, 'ta', repeat);
+  await speakAlternatives(d.ta, rate, 'ta');
   if (stopRequested) return;
 
   await pauseFor(thinkMs);
