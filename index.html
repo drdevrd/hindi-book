@@ -507,6 +507,7 @@
     <button class="tab active" data-tab="search">Search</button>
     <button class="tab" data-tab="book">Book</button>
     <button class="tab" data-tab="bookmarks">Bookmarks</button>
+    <button class="tab" data-tab="grammar">Grammar</button>
     <button class="tab" data-tab="translate">Translate</button>
     <button class="tab" data-tab="add">Add lines</button>
   </div>
@@ -565,6 +566,14 @@
       </div>
     </div>
   </div>
+
+  <section class="panel" id="panel-grammar">
+    <div class="search-box" style="margin-bottom:12px;">
+      <input id="grammarSearchInput" type="text" placeholder="Search grammar rules..." autocomplete="off">
+    </div>
+    <span class="hint" id="grammarHint">Loading grammar rules...</span>
+    <div id="grammarList"></div>
+  </section>
 
   <section class="panel" id="panel-translate">
     <p class="hint">Type a Tamil sentence — script or English transliteration, either works — and get a live Hindi translation, written the same way as the rest of this book.</p>
@@ -693,6 +702,9 @@
       }
       if(btn.dataset.tab === "bookmarks"){
         renderBookmarksTab(false);
+      }
+      if(btn.dataset.tab === "grammar"){
+        renderGrammarTab(false);
       }
     });
   });
@@ -1211,6 +1223,106 @@
     const items = parts.map(p => `<li style="margin-bottom:5px;">${escapeHtml(p)}</li>`).join("");
     return `<ul style="margin:6px 0 0 18px;padding:0;font-style:normal;color:var(--muted);font-size:0.85rem;list-style:disc;">${items}</ul>`;
   }
+
+  // ---- Grammar tab: all rows whose section is tagged "Grammar Notes:", with inline editing ----
+  let grammarCache = [];
+
+  async function renderGrammarTab(force){
+    const hintEl = document.getElementById("grammarHint");
+    hintEl.textContent = "Loading grammar rules...";
+    const { data, error } = await sb
+      .from("hindi_book")
+      .select("*")
+      .like("section", "Grammar Notes:%")
+      .order("page_no", { ascending: true, nullsFirst: true })
+      .order("id", { ascending: true });
+    if(error){ hintEl.textContent = "Error: " + error.message; return; }
+    grammarCache = data || [];
+    applyGrammarFilter();
+  }
+
+  function applyGrammarFilter(){
+    const hintEl = document.getElementById("grammarHint");
+    const listEl = document.getElementById("grammarList");
+    if(!grammarCache.length){
+      hintEl.textContent = "No grammar rules yet.";
+      listEl.innerHTML = "";
+      return;
+    }
+    const term = (document.getElementById("grammarSearchInput").value || "").trim().toLowerCase();
+    let filtered = grammarCache;
+    if(term){
+      filtered = grammarCache.filter(r=>{
+        const hay = [r.tamil, r.hindi, r.hindi_roman, r.english, r.section].filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(term);
+      });
+    }
+    hintEl.textContent = filtered.length + " grammar rule" + (filtered.length===1?"":"s")
+      + (term ? ` (of ${grammarCache.length} total)` : "");
+    if(!filtered.length){
+      listEl.innerHTML = "";
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(r => `
+      <div class="result" data-id="${r.id}" style="margin-top:14px;">
+        <div class="meta" style="margin-bottom:4px;">${escapeHtml(r.section)}${r.page_no?(" · p"+r.page_no):""}</div>
+        <div class="grammar-view">
+          <div class="tamil-line tamil">${escapeHtml(r.tamil)}</div>
+          <div class="hindi-line tamil">${escapeHtml(r.hindi)}</div>
+          ${romanLine(r)}
+          ${englishLine(r)}
+          <button class="goto-btn edit-grammar-btn" style="margin-top:10px;">✎ Edit</button>
+        </div>
+        <div class="grammar-edit" style="display:none;margin-top:8px;">
+          <label class="hint" style="display:block;margin-top:6px;">Tamil</label>
+          <textarea class="note-modal-textarea edit-tamil" style="width:100%;box-sizing:border-box;min-height:50px;">${escapeHtml(r.tamil)}</textarea>
+          <label class="hint" style="display:block;margin-top:6px;">Hindi (Tamil script)</label>
+          <textarea class="note-modal-textarea edit-hindi" style="width:100%;box-sizing:border-box;min-height:50px;">${escapeHtml(r.hindi)}</textarea>
+          <label class="hint" style="display:block;margin-top:6px;">Roman</label>
+          <textarea class="note-modal-textarea edit-roman" style="width:100%;box-sizing:border-box;min-height:36px;">${escapeHtml(r.hindi_roman||"")}</textarea>
+          <label class="hint" style="display:block;margin-top:6px;">English explanation</label>
+          <textarea class="note-modal-textarea edit-english" style="width:100%;box-sizing:border-box;min-height:120px;">${escapeHtml(r.english||"")}</textarea>
+          <div style="margin-top:8px;">
+            <button class="goto-btn save-grammar-btn">💾 Save</button>
+            <button class="goto-btn cancel-grammar-btn">Cancel</button>
+            <span class="copy-flash grammar-save-flash"></span>
+          </div>
+        </div>
+      </div>
+    `).join("");
+
+    listEl.querySelectorAll(".result").forEach(card=>{
+      const id = parseInt(card.dataset.id, 10);
+      const viewEl = card.querySelector(".grammar-view");
+      const editEl = card.querySelector(".grammar-edit");
+      card.querySelector(".edit-grammar-btn").addEventListener("click", ()=>{
+        viewEl.style.display = "none";
+        editEl.style.display = "block";
+      });
+      card.querySelector(".cancel-grammar-btn").addEventListener("click", ()=>{
+        editEl.style.display = "none";
+        viewEl.style.display = "block";
+      });
+      card.querySelector(".save-grammar-btn").addEventListener("click", async ()=>{
+        const flash = card.querySelector(".grammar-save-flash");
+        const updated = {
+          tamil: card.querySelector(".edit-tamil").value.trim(),
+          hindi: card.querySelector(".edit-hindi").value.trim(),
+          hindi_roman: card.querySelector(".edit-roman").value.trim() || null,
+          english: card.querySelector(".edit-english").value.trim() || null,
+        };
+        const { error } = await sb.from("hindi_book").update(updated).eq("id", id);
+        if(error){ flash.textContent = "Error: " + error.message; return; }
+        flash.textContent = "✓ Saved";
+        allRowsCache = null;
+        flipIndex = [];
+        setTimeout(()=> renderGrammarTab(true), 800);
+      });
+    });
+  }
+
+  document.getElementById("grammarSearchInput").addEventListener("input", applyGrammarFilter);
 
   // ---- Fuzzy scoring (handles typos, extra/missing letters) ----
   function levenshtein(a, b){
