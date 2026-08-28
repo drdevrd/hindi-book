@@ -1252,10 +1252,15 @@
     const term = (document.getElementById("grammarSearchInput").value || "").trim().toLowerCase();
     let filtered = grammarCache;
     if(term){
-      filtered = grammarCache.filter(r=>{
-        const hay = [r.tamil, r.hindi, r.hindi_roman, r.english, r.section].filter(Boolean).join(" ").toLowerCase();
-        return hay.includes(term);
-      });
+      filtered = grammarCache
+        .map(r => {
+          const bodyScore = scoreMatch(term, r);
+          const sectionScore = scoreMatch(term, { tamil: r.section, hindi: r.section });
+          return { r, score: Math.max(bodyScore, sectionScore) };
+        })
+        .filter(x => x.score > 0)
+        .sort((a,b) => b.score - a.score)
+        .map(x => x.r);
     }
     hintEl.textContent = filtered.length + " grammar rule" + (filtered.length===1?"":"s")
       + (term ? ` (of ${grammarCache.length} total)` : "");
