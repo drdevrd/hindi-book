@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hindi Audio Teacher - Lesson 4</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans Tamil', 'Noto Sans', Arial, sans-serif;
+    background: #fdf6e3;
+    margin: 0;
+    padding: 16px;
+    color: #2b2b2b;
+  }
+  h1 { font-size: 20px; text-align: center; margin: 4px 0 2px; }
+  h2.section { font-size: 15px; margin: 22px 0 8px; color: #b5451b; border-bottom: 2px solid #e6dcc0; padding-bottom: 4px; }
+  .sub { text-align: center; color: #777; font-size: 13px; margin-bottom: 16px; }
+
+  .controls {
+    background: #fff;
+    border: 1px solid #e0d5b8;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    position: sticky;
+    top: 8px;
+    z-index: 10;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  .controls button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #b5451b;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .controls button.secondary { background: #6b7280; }
+  .controls button:disabled { background: #ccc; cursor: not-allowed; }
+  .controls label { font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  select, input[type=range] { font-size: 13px; }
+  .voice-warning { font-size: 12px; color: #b5451b; width: 100%; }
+
+  .line {
+    background: #fff;
+    border: 1px solid #e6dcc0;
+    border-left: 5px solid #cbb98a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    transition: background 0.2s, border-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .line.active { background: #fff4e0; border-left-color: #b5451b; }
+  .num { font-size: 12px; color: #999; font-weight: 700; min-width: 22px; }
+  .words { flex: 1; min-width: 200px; }
+  .tamil { font-size: 16px; margin: 1px 0; }
+  .hindi { font-size: 16px; margin: 1px 0; color: #1a4d8f; }
+  .en { font-size: 12px; color: #888; font-style: italic; margin: 0 0 2px; }
+  .roman { font-size: 12px; color: #6d8fb5; margin: 0 0 1px; }
+  .hide-aids .en, .hide-aids .roman { display: none; }
+  .line-btn {
+    padding: 6px 12px;
+    border: 1px solid #b5451b;
+    background: #fff;
+    color: #b5451b;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  footer { text-align: center; font-size: 12px; color: #999; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h1>Lesson 4 — Hindi Vocabulary</h1>
+<div class="sub">Tamil word → pause (think in Hindi) → Hindi word</div>
+
+<div class="controls">
+  <button id="playAllBtn">▶ Play All</button>
+  <button id="stopBtn" class="secondary">■ Stop</button>
+  <label>Tamil speed
+    <input type="range" id="rateTamil" min="0.25" max="1.5" step="0.25" value="0.5">
+    <span id="rateTamilVal">0.5x</span>
+  </label>
+  <label>Hindi speed
+    <input type="range" id="rateHindi" min="0.25" max="1.5" step="0.25" value="0.5">
+    <span id="rateHindiVal">0.5x</span>
+  </label>
+  <label>Think pause
+    <input type="range" id="thinkPause" min="1" max="15" step="1" value="4">
+    <span id="thinkPauseVal">4s</span>
+  </label>
+  <label>Next-word pause
+    <input type="range" id="nextPause" min="0" max="15" step="1" value="3">
+    <span id="nextPauseVal">3s</span>
+  </label>
+  <label>Voice
+    <select id="voiceSelect"></select>
+  </label>
+  <label>Repeat gap
+    <input type="range" id="repeatGap" min="0.25" max="15" step="0.25" value="1">
+    <span id="repeatGapVal">1s</span>
+  </label>
+  <label><input type="checkbox" id="repeatToggle" checked> Repeat each word 2x</label>
+  <label><input type="checkbox" id="aidsToggle" checked> Show English + Hindi reading</label>
+  <label><input type="checkbox" id="cloudVoiceToggle"> Use cloud voice (better quality, Tamil + Hindi)</label>
+  <label>Cloud voice
+    <select id="cloudVoiceSelect">
+      <option value="nova">Nova — warm, natural</option>
+      <option value="shimmer">Shimmer — warm, natural</option>
+      <option value="alloy">Alloy — balanced default</option>
+      <option value="echo">Echo — neutral</option>
+      <option value="fable">Fable — expressive</option>
+      <option value="onyx">Onyx — deeper male</option>
+      <option value="custom">Custom (type below)…</option>
+    </select>
+  </label>
+  <label id="customVoiceWrap" style="display:none;">Custom voice name
+    <input type="text" id="customVoiceInput" placeholder="e.g. coral" style="width:170px;">
+  </label>
+  <div class="voice-warning" id="voiceWarning" style="display:none;"></div>
+  <div class="voice-warning" id="wakeStatus" style="color:#4a7c2f;"></div>
+  <div class="voice-warning" id="cloudErrorBanner" style="display:none; color:#b5451b; font-weight:600; width:100%;"></div>
+  <div style="width:100%; display:flex; gap:8px; align-items:center; margin-top:4px;">
+    <button id="saveDefaultsBtn" style="background:#4a7c2f;">💾 Save as my defaults</button>
+    <button id="resetDefaultsBtn" class="secondary">↺ Reset to original</button>
+    <span id="settingsStatus" style="font-size:12px; color:#4a7c2f;"></span>
+  </div>
+</div>
+<div class="sub" style="margin-top:-8px;">Eyes-free friendly — just listen. Tap ▶ on any word to hear only that one. Keep the phone screen unlocked while Play All runs (see note below). Preview more Hindi voices at <a href="https://cloud.google.com/text-to-speech#demo" target="_blank">cloud.google.com/text-to-speech</a> and paste any voice name you like into "Custom".</div>
+
+<div id="lines"></div>
+
+<footer>"Play All" reads every word Tamil first, pause, then Hindi, in order down the page.</footer>
+
+<script>
+const sections = [
+  {
+    title: "Lesson 4 — Adjectives & Opposites",
+    items: [
+      { n: "1", ta: "நல்லது", en: "Good", ha: "अच्छा", hr: "achha" },
+      { n: "2", ta: "கெட்டது", en: "Bad", ha: "बुरा", hr: "bura" },
+      { n: "3", ta: "உயரம் / நீளம்", en: "Tall / Long", ha: "लंबा", hr: "lamba" },
+      { n: "4", ta: "குள்ளம் / குட்டை", en: "Short (height)", ha: "नाटा / छोटा", hr: "naata / chota" },
+      { n: "5", ta: "அருகில்", en: "Near", ha: "पास / करीब / पास में", hr: "paas / kareeb / paas mein" },
+      { n: "6", ta: "தூரம்", en: "Far", ha: "दूर", hr: "door" },
+      { n: "7", ta: "குண்டு", en: "Fat", ha: "मोटा", hr: "mota" },
+      { n: "8", ta: "ஒல்லி", en: "Thin", ha: "पतला", hr: "patla" },
+      { n: "9", ta: "வெள்ளை (உடல்நிறம்)", en: "Fair (complexion)", ha: "गोरा", hr: "gora" },
+      { n: "10", ta: "வெள்ளை (நிறம்)", en: "White (colour)", ha: "सफ़ेद", hr: "safed" },
+      { n: "11", ta: "கஷ்டம்", en: "Difficult", ha: "मुश्किल / कठिन", hr: "mushkil / kathin" },
+      { n: "12", ta: "சுலபம்", en: "Easy", ha: "आसान", hr: "aasaan" },
+      { n: "13", ta: "லாபம்", en: "Profit", ha: "लाभ", hr: "laabh" },
+      { n: "14", ta: "நஷ்டம்", en: "Loss", ha: "नष्ट", hr: "nasht" },
+      { n: "15", ta: "பொய்", en: "Lie", ha: "झूठ", hr: "jhooth" },
+      { n: "16", ta: "உண்மை", en: "Truth", ha: "सच", hr: "sach" },
+      { n: "17", ta: "பணக்காரன்", en: "Rich person", ha: "धनवान / अमीर", hr: "dhanvaan / ameer" },
+      { n: "18", ta: "ஏழை", en: "Poor", ha: "गरीब", hr: "gareeb" },
+      { n: "19", ta: "சூடு", en: "Hot", ha: "गरम", hr: "garam" },
+      { n: "20", ta: "குளிர்ச்சி", en: "Cold", ha: "ठंडा", hr: "thanda" },
+      { n: "21", ta: "நேரம்", en: "Late / Time", ha: "देर", hr: "der" },
+      { n: "22", ta: "நிறைய / ரொம்ப", en: "A lot / Very", ha: "ज़्यादा / बहुत", hr: "zyada / bahut" },
+      { n: "23", ta: "குறைவு", en: "Less", ha: "कम", hr: "kam" },
+      { n: "24", ta: "அதிகம்", en: "More", ha: "अधिक", hr: "adhik" },
+      { n: "25", ta: "கொஞ்சம்", en: "A little", ha: "थोड़ा", hr: "thoda" },
+      { n: "26", ta: "பல", en: "Many", ha: "बहुत", hr: "bahut" },
+      { n: "27", ta: "சில", en: "Some / A few", ha: "कुछ", hr: "kuch" },
+      { n: "28", ta: "வருத்தம்", en: "Sadness", ha: "उदास / दुख", hr: "udaas / dukh" },
+      { n: "29", ta: "காய்ந்த", en: "Dry", ha: "सूखा", hr: "sookha" },
+      { n: "30", ta: "ஈரம்", en: "Wet", ha: "गीला", hr: "geela" },
+      { n: "31", ta: "கசப்பு", en: "Bitter", ha: "कड़वा", hr: "kadwa" },
+      { n: "32", ta: "இனிப்பு", en: "Sweet", ha: "मीठा", hr: "meetha" },
+      { n: "33", ta: "காரம்", en: "Spicy", ha: "तीखा", hr: "teekha" },
+      { n: "34", ta: "உப்பு (பொருள்)", en: "Salt (the substance)", ha: "नमक", hr: "namak" },
+      { n: "35", ta: "உப்பு (சுவை)", en: "Salty (the taste)", ha: "खारा", hr: "khaara" },
+      { n: "36", ta: "புளிப்பு", en: "Sour", ha: "खट्टा", hr: "khatta" },
+      { n: "37", ta: "விரும்புதல்", en: "Liking / Love", ha: "पसंद / प्यार", hr: "pasand / pyaar" },
+      { n: "38", ta: "வெறுப்பு", en: "Hatred", ha: "नफ़रत", hr: "nafrat" },
+      { n: "39", ta: "களைப்பு", en: "Tiredness", ha: "थकान", hr: "thakaan" },
+      { n: "40", ta: "சுறுசுறுப்பு", en: "Alertness / Briskness", ha: "चुस्त", hr: "chust" },
+      { n: "41", ta: "சோம்பேறி", en: "Lazy", ha: "आलसी", hr: "aalsi" },
+      { n: "42", ta: "முடியும்", en: "Can / Able to", ha: "सकता", hr: "sakta" },
+      { n: "43", ta: "முடியாது", en: "Cannot", ha: "नहीं सकता", hr: "nahi sakta" },
+      { n: "44", ta: "போதும்", en: "Enough", ha: "बस / काफ़ी", hr: "bas / kaafi" },
+      { n: "45", ta: "போதாது", en: "Not enough", ha: "बस नहीं / काफ़ी नहीं", hr: "bas nahi / kaafi nahi" }
+    ]
+  }
+];
+
+// Flatten into a single ordered play list, but render with section headers
+const data = [];
+const linesDiv = document.getElementById('lines');
+sections.forEach(sec => {
+  const h = document.createElement('h2');
+  h.className = 'section';
+  h.textContent = sec.title;
+  linesDiv.appendChild(h);
+  sec.items.forEach(item => {
+    const idx = data.length;
+    data.push(item);
+    const div = document.createElement('div');
+    div.className = 'line';
+    div.id = 'line-' + idx;
+    div.innerHTML = `
+      <div class="num">${item.n}</div>
+      <div class="words">
+        <div class="tamil">${item.ta}</div>
+        <div class="en">${item.en}</div>
+        <div class="hindi">${item.ha}</div>
+        <div class="roman">${item.hr}</div>
+      </div>
+      <button class="line-btn" data-idx="${idx}" data-mode="one">▶ Play</button>
+      <button class="line-btn" data-idx="${idx}" data-mode="from">⏭ From here</button>
+    `;
+    linesDiv.appendChild(div);
+  });
+});
+
+let voices = [];
+let hindiVoice = null;
+let tamilVoice = null;
+let playing = false;
+let stopRequested = false;
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      document.getElementById('wakeStatus').textContent = 'Screen will stay awake during playback.';
+    } else {
+      document.getElementById('wakeStatus').textContent = 'This browser can\'t keep the screen awake — if it locks mid-play, pauses/timing may be affected. Keep the screen on for reliable playback.';
+    }
+  } catch (err) {
+    document.getElementById('wakeStatus').textContent = 'Couldn\'t keep screen awake (' + err.name + '). Keep the screen on manually for reliable playback.';
+  }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  document.getElementById('wakeStatus').textContent = '';
+}
+document.addEventListener('visibilitychange', async () => {
+  if (playing && document.visibilityState === 'visible') {
+    await requestWakeLock();
+  }
+});
+
+function loadVoices() {
+  voices = speechSynthesis.getVoices();
+  const select = document.getElementById('voiceSelect');
+  select.innerHTML = '';
+  const hindiVoices = voices.filter(v => v.lang.toLowerCase().startsWith('hi'));
+  const tamilVoices = voices.filter(v => v.lang.toLowerCase().startsWith('ta'));
+  const warning = document.getElementById('voiceWarning');
+
+  tamilVoice = tamilVoices[0] || null;
+
+  let warnMsg = '';
+  if (hindiVoices.length === 0) warnMsg += 'No Hindi voice found — Hindi words may not speak correctly. ';
+  if (tamilVoices.length === 0) warnMsg += 'No Tamil voice found — Tamil words will fall back to the Hindi/default voice, which will mispronounce Tamil. Try Chrome on Android for built-in Google voices.';
+  if (warnMsg) { warning.style.display = 'block'; warning.textContent = warnMsg; }
+  else { warning.style.display = 'none'; }
+
+  const listed = hindiVoices.length ? hindiVoices : voices;
+  listed.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = v.name + ' (' + v.lang + ')';
+    select.appendChild(opt);
+  });
+  hindiVoice = listed[0] || null;
+}
+speechSynthesis.onvoiceschanged = () => { loadVoices(); loadSettings(); };
+loadVoices();
+
+document.getElementById('voiceSelect').addEventListener('change', (e) => {
+  hindiVoice = voices.find(v => v.name === e.target.value);
+});
+
+document.getElementById('rateTamil').addEventListener('input', (e) => {
+  document.getElementById('rateTamilVal').textContent = e.target.value + 'x';
+});
+document.getElementById('rateHindi').addEventListener('input', (e) => {
+  document.getElementById('rateHindiVal').textContent = e.target.value + 'x';
+});
+document.getElementById('thinkPause').addEventListener('input', (e) => {
+  document.getElementById('thinkPauseVal').textContent = e.target.value + 's';
+});
+document.getElementById('nextPause').addEventListener('input', (e) => {
+  document.getElementById('nextPauseVal').textContent = e.target.value + 's';
+});
+document.getElementById('aidsToggle').addEventListener('change', (e) => {
+  document.body.classList.toggle('hide-aids', !e.target.checked);
+});
+document.getElementById('repeatGap').addEventListener('input', (e) => {
+  document.getElementById('repeatGapVal').textContent = e.target.value + 's';
+});
+
+// ---- Settings persistence ----
+// Saves your preferred slider/checkbox positions so you don't have to
+// re-adjust them on every page load. Stored in this browser only.
+const SETTINGS_KEY = 'hindiTeacherSettings_v1';
+
+const SETTING_FIELDS = [
+  { id: 'rateTamil',        type: 'range',    labelId: 'rateTamilVal', suffix: 'x' },
+  { id: 'rateHindi',        type: 'range',    labelId: 'rateHindiVal', suffix: 'x' },
+  { id: 'thinkPause',       type: 'range',    labelId: 'thinkPauseVal', suffix: 's' },
+  { id: 'nextPause',        type: 'range',    labelId: 'nextPauseVal',  suffix: 's' },
+  { id: 'repeatGap',        type: 'range',    labelId: 'repeatGapVal',  suffix: 's' },
+  { id: 'repeatToggle',     type: 'checkbox' },
+  { id: 'aidsToggle',       type: 'checkbox' },
+  { id: 'cloudVoiceToggle', type: 'checkbox' },
+  { id: 'cloudVoiceSelect', type: 'select' },
+  { id: 'customVoiceInput', type: 'text' },
+  { id: 'voiceSelect',      type: 'select' }
+];
+
+function saveSettings() {
+  const settings = {};
+  SETTING_FIELDS.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el) return;
+    settings[f.id] = (f.type === 'checkbox') ? el.checked : el.value;
+  });
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    showSettingsStatus('Saved — these are now your defaults.');
+  } catch (err) {
+    showSettingsStatus('Could not save settings: ' + err, true);
+  }
+}
+
+function applySettings(settings) {
+  SETTING_FIELDS.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el || !(f.id in settings)) return;
+    if (f.type === 'checkbox') {
+      el.checked = settings[f.id];
+    } else {
+      el.value = settings[f.id];
+    }
+    // Refresh the little value label next to each slider
+    if (f.labelId) {
+      const lbl = document.getElementById(f.labelId);
+      if (lbl) lbl.textContent = el.value + (f.suffix || '');
+    }
+  });
+  // Re-apply side effects that normally fire on user interaction
+  document.body.classList.toggle('hide-aids', !document.getElementById('aidsToggle').checked);
+  document.getElementById('customVoiceWrap').style.display =
+    document.getElementById('cloudVoiceSelect').value === 'custom' ? 'inline-flex' : 'none';
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return;
+    applySettings(JSON.parse(raw));
+  } catch (err) {
+    console.error('Could not load saved settings:', err);
+  }
+}
+
+function showSettingsStatus(msg, isError) {
+  const el = document.getElementById('settingsStatus');
+  el.textContent = msg;
+  el.style.color = isError ? '#b5451b' : '#4a7c2f';
+  setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+document.getElementById('saveDefaultsBtn').addEventListener('click', saveSettings);
+
+document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
+  try {
+    localStorage.removeItem(SETTINGS_KEY);
+  } catch (err) { /* ignore */ }
+  applySettings({
+    rateTamil: '0.5', rateHindi: '0.5', thinkPause: '4', nextPause: '3',
+    repeatGap: '1', repeatToggle: true, aidsToggle: true,
+    cloudVoiceToggle: false, cloudVoiceSelect: 'nova', customVoiceInput: ''
+  });
+  showSettingsStatus('Reset to original defaults.');
+});
+
+// ---- Cloud TTS (Google Cloud, via Supabase Edge Function proxy) ----
+// Fill in your project's anon/public key from:
+// Supabase Dashboard -> Project Settings -> API -> Project API keys -> anon/public
+const SUPABASE_URL = 'https://ihbbihdjyphngxgoazxt.supabase.co/functions/v1/tts-proxy';
+const SUPABASE_ANON_KEY = 'sb_publishable_i0L6b4_Xyf94lpzLXlEM6g_832eesuH';
+
+function getCloudVoiceName() {
+  const sel = document.getElementById('cloudVoiceSelect').value;
+  if (sel === 'custom') {
+    return document.getElementById('customVoiceInput').value.trim() || 'hi-IN-Wavenet-D';
+  }
+  return sel;
+}
+
+document.getElementById('cloudVoiceSelect').addEventListener('change', (e) => {
+  document.getElementById('customVoiceWrap').style.display = e.target.value === 'custom' ? 'inline-flex' : 'none';
+});
+
+const cloudAudioCache = {};
+
+function speakCloud(text, rate) {
+  return new Promise(async (resolve) => {
+    if (!text) { resolve(); return; }
+    const voiceName = getCloudVoiceName();
+    const cacheKey = voiceName + '|' + rate + '|' + text;
+
+    // Reuse a cached clip if we've already generated this exact word before —
+    // OpenAI's voice is generative, so two separate calls for the same word
+    // (e.g. the "repeat 2x" feature) can come out slightly different each
+    // time. Caching guarantees the repeat is byte-identical to the first.
+    if (cloudAudioCache[cacheKey]) {
+      const cached = new Audio(cloudAudioCache[cacheKey]);
+      cached.onended = () => resolve();
+      cached.onerror = () => resolve();
+      cached.play().catch(() => resolve());
+      return;
+    }
+
+    try {
+      const res = await fetch(SUPABASE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+          text: text,
+          voiceName: voiceName,
+          speakingRate: rate
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.audioContent) {
+        const msg = 'Cloud TTS error (HTTP ' + res.status + '): ' + JSON.stringify(data.error || data) + ' — using browser voice instead.';
+        console.error(msg);
+        document.getElementById('cloudErrorBanner').textContent = msg;
+        document.getElementById('cloudErrorBanner').style.display = 'block';
+        await speak(text, rate, 'hi');
+        resolve();
+        return;
+      }
+      document.getElementById('cloudErrorBanner').style.display = 'none';
+      const dataUri = 'data:audio/mp3;base64,' + data.audioContent;
+      cloudAudioCache[cacheKey] = dataUri;
+      const audio = new Audio(dataUri);
+      audio.onended = () => resolve();
+      audio.onerror = () => resolve();
+      audio.play().catch(() => resolve());
+    } catch (err) {
+      const msg = 'Cloud TTS request failed: ' + err + ' — using browser voice instead.';
+      console.error(msg);
+      document.getElementById('cloudErrorBanner').textContent = msg;
+      document.getElementById('cloudErrorBanner').style.display = 'block';
+      await speak(text, rate, 'hi');
+      resolve();
+    }
+  });
+}
+
+function speak(text, rate, langKind) {
+  return new Promise((resolve) => {
+    if (!text) { resolve(); return; }
+    const utter = new SpeechSynthesisUtterance(text);
+    let v;
+    if (langKind === 'ta') {
+      v = tamilVoice || hindiVoice;
+      utter.lang = (tamilVoice && tamilVoice.lang) || 'ta-IN';
+    } else {
+      const selectedName = document.getElementById('voiceSelect').value;
+      v = voices.find(v => v.name === selectedName) || hindiVoice;
+      utter.lang = (v && v.lang) || 'hi-IN';
+    }
+    if (v) utter.voice = v;
+    utter.rate = rate;
+    // Small delay before resolving: some browsers fire 'onend' a beat before
+    // the last sound has actually finished playing through the speaker —
+    // resolving immediately can lead to the next action (a cancel/pause)
+    // clipping the tail end of the word.
+    utter.onend = () => setTimeout(resolve, 150);
+    utter.onerror = resolve;
+    speechSynthesis.speak(utter);
+  });
+}
+
+function speakEither(text, rate, langKind) {
+  const useCloud = document.getElementById('cloudVoiceToggle').checked;
+  if (useCloud && (langKind === 'hi' || langKind === 'ta')) {
+    return speakCloud(text, rate);
+  }
+  return speak(text, rate, langKind);
+}
+
+function pauseFor(ms) {
+  // Only flush the queue if something is genuinely still stuck/pending —
+  // cancelling unconditionally right after a normal finish can clip the
+  // tail end of the word that just played (e.g. "रात" losing its final त).
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    speechSynthesis.cancel();
+  }
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// Split "सुबह / सवेरा" into ["सुबह", "सवेरा"] so each alternative is spoken
+// as its own utterance — the TTS engine naturally stresses/enunciates a short
+// standalone word far better than it does a run-on slash-joined string.
+function splitAlternatives(text) {
+  return text.split('/').map(s => s.trim()).filter(Boolean);
+}
+
+async function speakAlternatives(text, rate, langKind) {
+  const parts = splitAlternatives(text);
+  for (let i = 0; i < parts.length; i++) {
+    if (stopRequested) return;
+    await speakEither(parts[i], rate, langKind);
+    if (i < parts.length - 1) await pauseFor(600);
+  }
+}
+
+async function speakTwice(text, rate, langKind, repeat) {
+  if (!text) return;
+  await speakAlternatives(text, rate, langKind);
+  if (repeat && !stopRequested) {
+    const gapMs = parseFloat(document.getElementById('repeatGap').value) * 1000;
+    await pauseFor(gapMs);
+    await speakAlternatives(text, rate, langKind);
+  }
+}
+
+async function playLine(i) {
+  const rateTamil = parseFloat(document.getElementById('rateTamil').value);
+  const rateHindi = parseFloat(document.getElementById('rateHindi').value);
+  const repeat = document.getElementById('repeatToggle').checked;
+  const thinkMs = parseInt(document.getElementById('thinkPause').value) * 1000;
+  document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
+  const el = document.getElementById('line-' + i);
+  el.classList.add('active');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const d = data[i];
+
+  await speakAlternatives(d.ta, rateTamil, 'ta');
+  if (stopRequested) return;
+
+  await pauseFor(thinkMs);
+  if (stopRequested) return;
+
+  await speakTwice(d.ha, rateHindi, 'hi', repeat);
+}
+
+async function playFromIndex(startIndex) {
+  if (playing) return;
+  playing = true;
+  stopRequested = false;
+  await requestWakeLock();
+  const nextPauseMs = () => parseInt(document.getElementById('nextPause').value) * 1000;
+  for (let i = startIndex; i < data.length; i++) {
+    if (stopRequested) break;
+    await playLine(i);
+    if (stopRequested) break;
+    if (i < data.length - 1) await pauseFor(nextPauseMs());
+  }
+  document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
+  playing = false;
+  releaseWakeLock();
+}
+
+document.querySelectorAll('.line-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    stopRequested = false;
+    const idx = parseInt(btn.dataset.idx);
+    if (btn.dataset.mode === 'from') {
+      playFromIndex(idx);
+    } else {
+      playLine(idx);
+    }
+  });
+});
+
+document.getElementById('playAllBtn').addEventListener('click', () => {
+  playFromIndex(0);
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+  stopRequested = true;
+  playing = false;
+  speechSynthesis.cancel();
+  document.querySelectorAll('.line').forEach(l => l.classList.remove('active'));
+  releaseWakeLock();
+});
+
+// Apply any previously saved defaults on page load
+loadSettings();
+</script>
+
+</body>
+</html>
