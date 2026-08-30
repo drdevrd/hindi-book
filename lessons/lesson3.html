@@ -116,6 +116,7 @@
   </label>
   <label><input type="checkbox" id="repeatToggle" checked> Repeat each word 2x</label>
   <label><input type="checkbox" id="aidsToggle" checked> Show English + Hindi reading</label>
+  <label><input type="checkbox" id="syllableToggle"> Break Hindi into syllables first</label>
   <label><input type="checkbox" id="cloudVoiceToggle"> Use cloud voice (better quality, Tamil + Hindi)</label>
   <label>Cloud voice
     <select id="cloudVoiceSelect">
@@ -423,6 +424,7 @@ const SETTING_FIELDS = [
   { id: 'repeatGap',        type: 'range',    labelId: 'repeatGapVal',  suffix: 's' },
   { id: 'repeatToggle',     type: 'checkbox' },
   { id: 'aidsToggle',       type: 'checkbox' },
+  { id: 'syllableToggle',   type: 'checkbox' },
   { id: 'cloudVoiceToggle', type: 'checkbox' },
   { id: 'cloudVoiceSelect', type: 'select' },
   { id: 'customVoiceInput', type: 'text' },
@@ -491,7 +493,8 @@ document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
   applySettings({
     rateTamil: '0.5', rateHindi: '0.5', thinkPause: '4', nextPause: '3',
     repeatGap: '1', repeatToggle: true, aidsToggle: true,
-    cloudVoiceToggle: false, cloudVoiceSelect: 'nova', customVoiceInput: ''
+    cloudVoiceToggle: false, cloudVoiceSelect: 'nova', customVoiceInput: '',
+    syllableToggle: false
   });
   showSettingsStatus('Reset to original defaults.');
 });
@@ -622,15 +625,78 @@ function pauseFor(ms) {
 // Split "सुबह / सवेरा" into ["सुबह", "सवेरा"] so each alternative is spoken
 // as its own utterance — the TTS engine naturally stresses/enunciates a short
 // standalone word far better than it does a run-on slash-joined string.
+// Split a Devanagari word into pronounceable syllables (aksharas), so the
+// word can be read out piece by piece before being said as a whole —
+// e.g. "अच्छा" -> "अ", "च्छा". Conjuncts joined by a virama stay together.
+function splitDevanagari(word) {
+  const isConsonant = c => (c >= '\u0915' && c <= '\u0939') || (c >= '\u0958' && c <= '\u095F');
+  const isIndepVowel = c => (c >= '\u0904' && c <= '\u0914');
+  const isMatra = c => (c >= '\u093E' && c <= '\u094C') || c === '\u0962' || c === '\u0963' || c === '\u0955';
+  const isVirama = c => c === '\u094D';
+  const isAttach = c => c === '\u0901' || c === '\u0902' || c === '\u0903' || c === '\u093C' || c === '\u093D';
+
+  const syllables = [];
+  let cur = '';
+  let pendingVirama = false;
+
+  for (const ch of word) {
+    if (isConsonant(ch) || isIndepVowel(ch)) {
+      if (cur && !pendingVirama) { syllables.push(cur); cur = ''; }
+      cur += ch;
+      pendingVirama = false;
+    } else if (isVirama(ch)) {
+      cur += ch;
+      pendingVirama = true;
+    } else if (isMatra(ch) || isAttach(ch)) {
+      cur += ch;
+      pendingVirama = false;
+    } else {
+      if (cur) { syllables.push(cur); cur = ''; }
+      pendingVirama = false;
+      if (ch.trim()) syllables.push(ch);
+    }
+  }
+  if (cur) syllables.push(cur);
+  return syllables.filter(s => s.trim());
+}
+
+// Read a Hindi phrase syllable by syllable (word by word), then say the
+// whole phrase together — the way a teacher sounds out a new word.
+async function speakSyllables(text, rate, langKind) {
+  const words = text.split(/\s+/).filter(Boolean);
+  for (const w of words) {
+    const parts = splitDevanagari(w);
+    // Only worth spelling out if the word actually has multiple syllables
+    if (parts.length > 1) {
+      for (const p of parts) {
+        if (stopRequested) return;
+        await speakEither(p, rate, langKind);
+        await pauseFor(450);
+      }
+      if (stopRequested) return;
+      await pauseFor(350);
+    }
+  }
+  if (stopRequested) return;
+  // Now the whole thing, said normally
+  await speakEither(text, rate, langKind);
+}
+
 function splitAlternatives(text) {
   return text.split('/').map(s => s.trim()).filter(Boolean);
 }
 
 async function speakAlternatives(text, rate, langKind) {
   const parts = splitAlternatives(text);
+  const useSyllables = langKind === 'hi' &&
+    document.getElementById('syllableToggle').checked;
   for (let i = 0; i < parts.length; i++) {
     if (stopRequested) return;
-    await speakEither(parts[i], rate, langKind);
+    if (useSyllables) {
+      await speakSyllables(parts[i], rate, langKind);
+    } else {
+      await speakEither(parts[i], rate, langKind);
+    }
     if (i < parts.length - 1) await pauseFor(600);
   }
 }
