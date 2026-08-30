@@ -667,7 +667,12 @@ async function speakSyllables(text, rate, langKind) {
   for (const w of words) {
     const parts = splitDevanagari(w);
     // Only worth spelling out if the word actually has multiple syllables
-    if (parts.length > 1) {
+    // Only spell out words that are genuinely multi-syllable in speech.
+    // A 2-unit word (e.g. मत, बस, कल) is really ONE spoken syllable —
+    // breaking it into म + त sounds like "ma-ta" instead of "mat" and
+    // reads as messy rather than helpful. 3+ units is a safe cutoff for
+    // words that actually benefit from being sounded out piece by piece.
+    if (parts.length > 2) {
       for (const p of parts) {
         if (stopRequested) return;
         await speakEither(p, rate, langKind);
