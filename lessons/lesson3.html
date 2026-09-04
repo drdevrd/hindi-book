@@ -123,12 +123,12 @@
   <label><input type="checkbox" id="cloudVoiceToggle"> Use cloud voice (better quality, Tamil + Hindi)</label>
   <label>Cloud voice
     <select id="cloudVoiceSelect">
-      <option value="nova">Nova — warm, natural</option>
-      <option value="shimmer">Shimmer — warm, natural</option>
-      <option value="alloy">Alloy — balanced default</option>
-      <option value="echo">Echo — neutral</option>
-      <option value="fable">Fable — expressive</option>
-      <option value="onyx">Onyx — deeper male</option>
+      <option value="meera">Meera</option>
+      <option value="pavithra">Pavithra</option>
+      <option value="maitreyi">Maitreyi</option>
+      <option value="arvind">Arvind</option>
+      <option value="amol">Amol</option>
+      <option value="amartya">Amartya</option>
       <option value="custom">Custom (type below)…</option>
     </select>
   </label>
@@ -525,18 +525,18 @@ document.getElementById('cloudVoiceSelect').addEventListener('change', (e) => {
 
 const cloudAudioCache = {};
 
-function speakCloud(text, rate) {
+function speakCloud(text, rate, langKind) {
   return new Promise(async (resolve) => {
     if (!text) { resolve(); return; }
     const voiceName = getCloudVoiceName();
-    const cacheKey = voiceName + '|' + rate + '|' + text;
+    const cacheKey = voiceName + '|' + rate + '|' + langKind + '|' + text;
 
     // Reuse a cached clip if we've already generated this exact word before —
     // OpenAI's voice is generative, so two separate calls for the same word
     // (e.g. the "repeat 2x" feature) can come out slightly different each
     // time. Caching guarantees the repeat is byte-identical to the first.
     if (cloudAudioCache[cacheKey]) {
-      const cached = new Audio(cloudAudioCache[cacheKey]);
+      const cached = new Audio(cloudAudioCache[cacheKey]);  // stores full data URI incl. correct mime type
       cached.onended = () => resolve();
       cached.onerror = () => resolve();
       cached.play().catch(() => resolve());
@@ -554,7 +554,8 @@ function speakCloud(text, rate) {
         body: JSON.stringify({
           text: text,
           voiceName: voiceName,
-          speakingRate: rate
+          speakingRate: rate,
+          langKind: langKind
         })
       });
       const data = await res.json();
@@ -568,7 +569,7 @@ function speakCloud(text, rate) {
         return;
       }
       document.getElementById('cloudErrorBanner').style.display = 'none';
-      const dataUri = 'data:audio/mp3;base64,' + data.audioContent;
+      const dataUri = 'data:' + (data.mimeType || 'audio/mp3') + ';base64,' + data.audioContent;
       cloudAudioCache[cacheKey] = dataUri;
       const audio = new Audio(dataUri);
       audio.onended = () => resolve();
@@ -613,7 +614,7 @@ function speak(text, rate, langKind) {
 function speakEither(text, rate, langKind) {
   const useCloud = document.getElementById('cloudVoiceToggle').checked;
   if (useCloud && (langKind === 'hi' || langKind === 'ta')) {
-    return speakCloud(text, rate);
+    return speakCloud(text, rate, langKind);
   }
   return speak(text, rate, langKind);
 }
